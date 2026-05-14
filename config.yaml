@@ -1,0 +1,20 @@
+data:
+  raw_path: "data/raw"
+  processed_data : "data/processed"
+  logs: "logs"
+
+ingestion:
+  file_types:
+    - ".pdf"
+    - ".html"
+    - ".htm"
+
+  strategy: "auto"
+
+  extract_metadata: true
+
+  output_format: "json"
+
+  logging:
+  level: "INFO"
+  file: "logs/ingestion.log"
