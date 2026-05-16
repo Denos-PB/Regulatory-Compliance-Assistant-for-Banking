@@ -9,7 +9,7 @@ ingestion:
     - ".html"
     - ".htm"
 
-  strategy: "auto"
+  strategy: "hi_res"
 
   extract_metadata: true
 
