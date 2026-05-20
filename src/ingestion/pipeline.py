@@ -43,7 +43,14 @@ def run_pipeline(raw_dir: str = "data/raw", output_dir: str = "data/processed"):
             ", ".join(os.path.basename(p) for p in failed_quality),
         )
 
-    parsed_docs = parse_documents(raw_docs)
+    parser_cfg = {
+        "dedupe_repeated_lines": cfg.get("dedupe_repeated_lines", True),
+        "dedupe_min_pages": cfg.get("dedupe_min_pages", 10),
+        "dedupe_min_line_length": cfg.get("dedupe_min_line_length", 25),
+        "dedupe_max_line_length": cfg.get("dedupe_max_line_length", 220),
+        "dedupe_ratio_threshold": cfg.get("dedupe_ratio_threshold", 0.6),
+    }
+    parsed_docs = parse_documents(raw_docs, parser_config=parser_cfg)
     logger.info("Parsed %d documents", len(parsed_docs))
 
     quality_issues = sum(

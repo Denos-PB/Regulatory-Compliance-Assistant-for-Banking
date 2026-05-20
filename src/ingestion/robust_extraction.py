@@ -154,7 +154,6 @@ def fast_extraction_is_sufficient(
 def extract_with_fallback(
     filepath: str,
     *,
-    infer_table_structure: bool = True,
     pdf_strategy: str = "fast_first",
     fast_min_char_ratio: float = 0.05,
     fast_min_absolute_chars: int = 500,
@@ -184,8 +183,6 @@ def extract_with_fallback(
     if pdf_strategy in ("fast", "hi_res", "auto"):
         logger.info("Using %s strategy for %s", pdf_strategy, basename)
         kwargs = {"filename": filepath, "strategy": pdf_strategy, **_COMMON_PDF_KWARGS}
-        if pdf_strategy == "hi_res":
-            kwargs["infer_table_structure"] = infer_table_structure
         return partition_pdf(**kwargs), pdf_strategy
 
     # fast_first (default for digital PDFs)
@@ -249,7 +246,6 @@ def extract_with_fallback(
     hi_res_elements = partition_pdf(
         filename=filepath,
         strategy="hi_res",
-        infer_table_structure=infer_table_structure,
         **_COMMON_PDF_KWARGS,
     )
     return hi_res_elements, "hi_res"

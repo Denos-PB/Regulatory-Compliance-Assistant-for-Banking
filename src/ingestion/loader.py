@@ -20,7 +20,6 @@ def load_ingestion_config() -> dict:
     defaults = {
         "min_text_length": DEFAULT_MIN_TEXT_LEN,
         "skip_categories": sorted(SKIP_CATEGORIES),
-        "infer_table_structure": True,
         "languages": ["eng"],
         "file_types": [".pdf", ".html", ".htm"],
         "fail_on_quality_issues": False,
@@ -28,6 +27,11 @@ def load_ingestion_config() -> dict:
         "fast_min_char_ratio": 0.05,
         "fast_min_absolute_chars": 500,
         "allow_hi_res_fallback": True,
+        "dedupe_repeated_lines": True,
+        "dedupe_min_pages": 10,
+        "dedupe_min_line_length": 25,
+        "dedupe_max_line_length": 220,
+        "dedupe_ratio_threshold": 0.6,
     }
     if not _CONFIG_PATH.exists():
         return defaults
@@ -40,7 +44,6 @@ def load_ingestion_config() -> dict:
         {
             "min_text_length": ingestion.get("min_text_length", DEFAULT_MIN_TEXT_LEN),
             "skip_categories": ingestion.get("skip_categories", sorted(SKIP_CATEGORIES)),
-            "infer_table_structure": ingestion.get("infer_table_structure", True),
             "languages": ingestion.get("languages", ["eng"]),
             "file_types": ingestion.get("file_types", [".pdf", ".html", ".htm"]),
             "fail_on_quality_issues": ingestion.get("fail_on_quality_issues", False),
@@ -48,6 +51,11 @@ def load_ingestion_config() -> dict:
             "fast_min_char_ratio": ingestion.get("fast_min_char_ratio", 0.05),
             "fast_min_absolute_chars": ingestion.get("fast_min_absolute_chars", 500),
             "allow_hi_res_fallback": ingestion.get("allow_hi_res_fallback", True),
+            "dedupe_repeated_lines": ingestion.get("dedupe_repeated_lines", True),
+            "dedupe_min_pages": ingestion.get("dedupe_min_pages", 10),
+            "dedupe_min_line_length": ingestion.get("dedupe_min_line_length", 25),
+            "dedupe_max_line_length": ingestion.get("dedupe_max_line_length", 220),
+            "dedupe_ratio_threshold": ingestion.get("dedupe_ratio_threshold", 0.6),
         }
     )
     return defaults
@@ -61,7 +69,7 @@ def _should_skip_element(element, skip_categories: frozenset, min_text_len: int)
 
 
 def _element_to_document(element, file_path: str, file_type: str) -> Document:
-    doc = Document(
+    return Document(
         page_content=element.text or "",
         metadata={
             "source": file_path,
@@ -70,16 +78,12 @@ def _element_to_document(element, file_path: str, file_type: str) -> Document:
             "type": element.category,
         },
     )
-    if element.category == "Table" and hasattr(element.metadata, "text_as_html"):
-        doc.metadata["text_as_html"] = element.metadata.text_as_html
-    return doc
 
 
 def _partition_file(file_path: str, cfg: dict) -> tuple[list, str, str]:
     if file_path.lower().endswith(".pdf"):
         elements, strategy = extract_with_fallback(
             file_path,
-            infer_table_structure=cfg["infer_table_structure"],
             pdf_strategy=cfg["pdf_strategy"],
             fast_min_char_ratio=cfg["fast_min_char_ratio"],
             fast_min_absolute_chars=cfg["fast_min_absolute_chars"],
