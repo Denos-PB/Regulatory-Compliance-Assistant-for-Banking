@@ -9,7 +9,28 @@ ingestion:
     - ".html"
     - ".htm"
 
-  strategy: "hi_res"
+  # fast_first: try fast (pdfminer), fall back to hi_res only if yield is low
+  pdf_strategy: "fast_first"
+
+  fast_min_char_ratio: 0.05
+  fast_min_absolute_chars: 500
+
+  # Set false to skip slow hi_res if fast + pypdf are insufficient (fails instead)
+  allow_hi_res_fallback: true
+
+  languages:
+    - "eng"
+
+  infer_table_structure: true
+
+  min_text_length: 50
+
+  skip_categories:
+    - "Image"
+    - "Figure"
+
+  # When true, documents from files that fail assess_extraction_quality are omitted
+  fail_on_quality_issues: false
 
   extract_metadata: true
 
