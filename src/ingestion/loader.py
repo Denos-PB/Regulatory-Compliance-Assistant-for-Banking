@@ -1,176 +1,127 @@
 import logging
 import os
-from pathlib import Path
-
-import yaml
 from langchain_core.documents import Document
 from unstructured.partition.html import partition_html
-
+from .config import load_ingestion_config
 from .robust_extraction import assess_extraction_quality, extract_with_fallback
 
 logger = logging.getLogger(__name__)
+_SKIP = frozenset({"Image", "Figure"})
 
-SKIP_CATEGORIES = frozenset({"Image", "Figure"})
-DEFAULT_MIN_TEXT_LEN = 50
-
-_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
-
-
-def load_ingestion_config() -> dict:
-    defaults = {
-        "min_text_length": DEFAULT_MIN_TEXT_LEN,
-        "skip_categories": sorted(SKIP_CATEGORIES),
-        "languages": ["eng"],
-        "file_types": [".pdf", ".html", ".htm"],
-        "fail_on_quality_issues": False,
-        "pdf_strategy": "fast_first",
-        "fast_min_char_ratio": 0.05,
-        "fast_min_absolute_chars": 500,
-        "allow_hi_res_fallback": True,
-        "dedupe_repeated_lines": True,
-        "dedupe_min_pages": 10,
-        "dedupe_min_line_length": 25,
-        "dedupe_max_line_length": 220,
-        "dedupe_ratio_threshold": 0.6,
+def _error_quality(path: str, error: str, strategy: str | None = None) -> dict:
+    return {
+        "status": "error",
+        "issues": ["extraction_error"],
+        "error": error,
+        "source": path,
+        "strategy": strategy,
+        "total_chars": 0,
+        "total_elements": 0,
+        "kept_elements": 0,
+        "skipped_elements": 0,
     }
-    if not _CONFIG_PATH.exists():
-        return defaults
-
-    with open(_CONFIG_PATH, encoding="utf-8") as f:
-        config = yaml.safe_load(f) or {}
-
-    ingestion = config.get("ingestion", {})
-    defaults.update(
-        {
-            "min_text_length": ingestion.get("min_text_length", DEFAULT_MIN_TEXT_LEN),
-            "skip_categories": ingestion.get("skip_categories", sorted(SKIP_CATEGORIES)),
-            "languages": ingestion.get("languages", ["eng"]),
-            "file_types": ingestion.get("file_types", [".pdf", ".html", ".htm"]),
-            "fail_on_quality_issues": ingestion.get("fail_on_quality_issues", False),
-            "pdf_strategy": ingestion.get("pdf_strategy", "fast_first"),
-            "fast_min_char_ratio": ingestion.get("fast_min_char_ratio", 0.05),
-            "fast_min_absolute_chars": ingestion.get("fast_min_absolute_chars", 500),
-            "allow_hi_res_fallback": ingestion.get("allow_hi_res_fallback", True),
-            "dedupe_repeated_lines": ingestion.get("dedupe_repeated_lines", True),
-            "dedupe_min_pages": ingestion.get("dedupe_min_pages", 10),
-            "dedupe_min_line_length": ingestion.get("dedupe_min_line_length", 25),
-            "dedupe_max_line_length": ingestion.get("dedupe_max_line_length", 220),
-            "dedupe_ratio_threshold": ingestion.get("dedupe_ratio_threshold", 0.6),
-        }
-    )
-    return defaults
 
 
-def _should_skip_element(element, skip_categories: frozenset, min_text_len: int) -> bool:
-    if element.category in skip_categories:
-        return True
-    text = (element.text or "").strip()
-    return len(text) < min_text_len
-
-
-def _element_to_document(element, file_path: str, file_type: str) -> Document:
-    return Document(
-        page_content=element.text or "",
-        metadata={
-            "source": file_path,
-            "file_type": file_type,
-            "page_number": element.metadata.page_number,
-            "type": element.category,
-        },
-    )
-
-
-def _partition_file(file_path: str, cfg: dict) -> tuple[list, str, str]:
-    if file_path.lower().endswith(".pdf"):
-        elements, strategy = extract_with_fallback(
-            file_path,
-            pdf_strategy=cfg["pdf_strategy"],
-            fast_min_char_ratio=cfg["fast_min_char_ratio"],
-            fast_min_absolute_chars=cfg["fast_min_absolute_chars"],
-            allow_hi_res_fallback=cfg["allow_hi_res_fallback"],
-        )
+def _partition(path: str, cfg: dict) -> tuple[list, str, str]:
+    if path.lower().endswith(".pdf"):
+        elements, strategy = extract_with_fallback(path, cfg)
         return elements, "pdf", strategy
-    if file_path.lower().endswith((".html", ".htm")):
-        return (
-            partition_html(
-                filename=file_path,
+    if path.lower().endswith((".html", ".htm")):
+        try:
+            elements = partition_html(
+                filename=path,
                 languages=cfg["languages"],
                 detect_language_per_element=False,
-            ),
-            "html",
-            "html",
-        )
-    raise ValueError(f"Unsupported file type: {file_path}")
+            )
+        except Exception as e:
+            raise RuntimeError(f"partition_html failed: {e}") from e
+        return elements, "html", "html"
+    raise ValueError(f"Unsupported file type: {path}")
 
 
-def load_file(file_path: str, cfg: dict | None = None) -> tuple[list[Document], dict]:
-    """Partition one file, assess quality on raw elements, return kept documents."""
-    cfg = cfg or load_ingestion_config()
-    skip_categories = frozenset(cfg["skip_categories"])
-    min_text_len = cfg["min_text_length"]
+def _element_metadata(el, path: str, file_type: str) -> dict:
+    page_number = getattr(getattr(el, "metadata", None), "page_number", None)
+    return {
+        "source": path,
+        "file_type": file_type,
+        "page_number": page_number,
+        "type": getattr(el, "category", "Text"),
+    }
 
-    elements, file_type, strategy = _partition_file(file_path, cfg)
+
+def load_file(path: str, cfg: dict) -> tuple[list[Document], dict]:
+    """Load one file. On failure returns empty docs and an error quality report."""
+    skip = frozenset(cfg.get("skip_categories", _SKIP))
+    min_len = cfg["min_text_length"]
+
+    try:
+        elements, file_type, strategy = _partition(path, cfg)
+    except Exception as e:
+        logger.exception("Extraction failed for %s", path)
+        return [], _error_quality(path, str(e))
+
     quality = assess_extraction_quality(elements)
-    quality["source"] = file_path
-    quality["strategy"] = strategy
+    quality.update(source=path, strategy=strategy, kept_elements=0, skipped_elements=0)
 
-    docs = []
-    skipped = 0
-    for element in elements:
-        if _should_skip_element(element, skip_categories, min_text_len):
+    kept, skipped = [], 0
+    for el in elements:
+        try:
+            text = (el.text or "").strip()
+            if el.category in skip or len(text) < min_len:
+                skipped += 1
+                continue
+            kept.append(Document(page_content=el.text or "", metadata=_element_metadata(el, path, file_type)))
+        except Exception as e:
             skipped += 1
-            continue
-        docs.append(_element_to_document(element, file_path, file_type))
+            logger.warning("Skipping element in %s: %s", os.path.basename(path), e)
 
-    quality["kept_elements"] = len(docs)
+    quality["kept_elements"] = len(kept)
     quality["skipped_elements"] = skipped
 
-    logger.info(
-        "Loaded %s: %d kept, %d skipped (strategy=%s, raw elements: %d, quality: %s)",
-        os.path.basename(file_path),
-        len(docs),
-        skipped,
-        strategy,
-        quality["total_elements"],
-        quality["status"],
-    )
     if quality["status"] == "failed":
         logger.warning(
-            "Extraction quality issues for %s: %s",
-            os.path.basename(file_path),
+            "Quality issues for %s: %s",
+            os.path.basename(path),
             ", ".join(quality["issues"]),
         )
+    logger.info(
+        "Loaded %s: %d kept, %d skipped (strategy=%s, quality=%s)",
+        os.path.basename(path),
+        len(kept),
+        skipped,
+        strategy,
+        quality["status"],
+    )
+    return kept, quality
 
-    return docs, quality
 
-
-def load_documents(file_paths: list[str]) -> tuple[list[Document], dict[str, dict]]:
-    """Load only the given validated file paths. Returns all docs and per-file quality."""
+def load_documents(file_paths: list[str], cfg: dict | None = None) -> tuple[list[Document], dict[str, dict]]:
     if not file_paths:
         logger.warning("No files to load")
         return [], {}
 
-    cfg = load_ingestion_config()
-    results: list[Document] = []
+    cfg = cfg or load_ingestion_config()
+    docs: list[Document] = []
     quality_by_file: dict[str, dict] = {}
-    failed_files: list[dict] = []
+    load_errors = 0
 
-    for file_path in file_paths:
-        try:
-            docs, quality = load_file(file_path, cfg)
-            quality_by_file[file_path] = quality
-            if cfg["fail_on_quality_issues"] and quality["status"] == "failed":
-                logger.error(
-                    "Skipping output from %s due to quality failure (fail_on_quality_issues=true)",
-                    os.path.basename(file_path),
-                )
-                continue
-            results.extend(docs)
-        except Exception as e:
-            failed_files.append({"file": file_path, "error": str(e)})
-            logger.error("Failed to load %s: %s", file_path, e)
+    for path in file_paths:
+        kept, quality = load_file(path, cfg)
+        quality_by_file[path] = quality
 
-    if failed_files:
-        logger.warning("%d file(s) failed to load", len(failed_files))
+        if quality["status"] == "error":
+            load_errors += 1
+            continue
 
-    return results, quality_by_file
+        if cfg["fail_on_quality_issues"] and quality["status"] == "failed":
+            logger.error(
+                "Skipping output from %s (fail_on_quality_issues=true)",
+                os.path.basename(path),
+            )
+            continue
+
+        docs.extend(kept)
+
+    if load_errors:
+        logger.error("%d file(s) failed during extraction", load_errors)
+    return docs, quality_by_file

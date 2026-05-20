@@ -1,139 +1,117 @@
+import logging
 import re
 import unicodedata
-import logging
+
 from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_PARSER_CONFIG = {
-    "dedupe_repeated_lines": True,
-    "dedupe_min_pages": 10,
-    "dedupe_min_line_length": 25,
-    "dedupe_max_line_length": 220,
-    "dedupe_ratio_threshold": 0.6,
-}
-
-def clean_text(text:str) -> str:
-    text = text.replace('\x00', '')
-    text = unicodedata.normalize("NFKC", text)
-    text = re.sub(r'\n{3,}','\n\n',text)
-    text = re.sub(r' {2,}', ' ',text)
-    text = text.strip()
-
-    return text
+_DEDUPE_KEYS = (
+    "dedupe_repeated_lines",
+    "dedupe_min_pages",
+    "dedupe_min_line_length",
+    "dedupe_max_line_length",
+    "dedupe_ratio_threshold",
+)
 
 
-def _normalize_line_for_compare(line: str) -> str:
-    line = unicodedata.normalize("NFKC", line or "")
-    line = re.sub(r"\s+", " ", line).strip()
-    line = re.sub(r"\bpage\s+\d+\b", "page #", line, flags=re.IGNORECASE)
-    line = re.sub(r"\b\d+\b", "#", line)
-    return line.lower()
+def _clean(text: str) -> str:
+    text = unicodedata.normalize("NFKC", text.replace("\x00", ""))
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return re.sub(r" {2,}", " ", text).strip()
 
-def extract_section_headers(text:str) -> list:
-    headers =[]
-    for line in text.split('\n'):
+
+def _norm_line(line: str) -> str:
+    line = re.sub(r"\s+", " ", unicodedata.normalize("NFKC", line or "")).strip()
+    line = re.sub(r"\bpage\s+\d+\b", "page #", line, flags=re.I)
+    return re.sub(r"\b\d+\b", "#", line).lower()
+
+
+def _headers(text: str) -> list:
+    out = []
+    for line in text.split("\n"):
         line = line.strip()
         if not line:
             continue
-        if re.match(r'^\d+(\.\d+)*\s+', line):
-            headers.append(line)
-        elif line.isupper() and len(line) < 100:
-            headers.append(line)
-        elif not line.endswith('.') and len(line)<100 and line[0].isupper():
-            headers.append(line)
-
-    return headers
+        if re.match(r"^\d+(\.\d+)*\s+", line) or (line.isupper() and len(line) < 100):
+            out.append(line)
+        elif not line.endswith(".") and len(line) < 100 and line[0].isupper():
+            out.append(line)
+    return out
 
 
-def _collect_repeated_lines_by_source(docs: list, cfg: dict) -> dict[str, set[str]]:
-    per_source_page_lines: dict[str, list[set[str]]] = {}
+def _repeated_lines(docs: list, cfg: dict) -> dict[str, set[str]]:
+    by_source: dict[str, list[set[str]]] = {}
+    lo, hi = cfg["dedupe_min_line_length"], cfg["dedupe_max_line_length"]
 
     for doc in docs:
-        source = doc.metadata.get("source", "unknown")
-        lines = [line.strip() for line in doc.page_content.split("\n") if line.strip()]
-        normalized = {
-            _normalize_line_for_compare(line)
-            for line in lines
-            if cfg["dedupe_min_line_length"] <= len(line) <= cfg["dedupe_max_line_length"]
-        }
-        per_source_page_lines.setdefault(source, []).append(normalized)
+        src = doc.metadata.get("source", "unknown")
+        norm = {_norm_line(l) for l in doc.page_content.split("\n") if lo <= len(l.strip()) <= hi}
+        by_source.setdefault(src, []).append(norm)
 
-    repeated_by_source: dict[str, set[str]] = {}
-    for source, pages in per_source_page_lines.items():
-        page_count = len(pages)
-        if page_count < cfg["dedupe_min_pages"]:
-            repeated_by_source[source] = set()
+    repeated = {}
+    for src, pages in by_source.items():
+        if len(pages) < cfg["dedupe_min_pages"]:
+            repeated[src] = set()
             continue
-
         counts: dict[str, int] = {}
-        for page_set in pages:
-            for norm_line in page_set:
-                counts[norm_line] = counts.get(norm_line, 0) + 1
+        for page in pages:
+            for line in page:
+                counts[line] = counts.get(line, 0) + 1
+        need = max(2, int(len(pages) * cfg["dedupe_ratio_threshold"]))
+        repeated[src] = {line for line, c in counts.items() if c >= need}
+    return repeated
 
-        threshold = max(2, int(page_count * cfg["dedupe_ratio_threshold"]))
-        repeated_by_source[source] = {
-            line for line, count in counts.items() if count >= threshold
-        }
-    return repeated_by_source
 
-def parse_document(doc:Document, repeated_lines: set[str] | None = None) -> Document:
-    original_text = doc.page_content
-    metadata = dict(doc.metadata)
-    doc_type = metadata.get("type", "Text")
+def parse_document(doc: Document, repeated_lines: set[str] | None = None) -> Document:
+    text, meta = doc.page_content, dict(doc.metadata)
 
     if repeated_lines:
-        kept_lines = []
-        removed = 0
-        for line in original_text.split("\n"):
-            stripped = line.strip()
-            if stripped and _normalize_line_for_compare(stripped) in repeated_lines:
+        lines, removed = [], 0
+        for line in text.split("\n"):
+            if line.strip() and _norm_line(line.strip()) in repeated_lines:
                 removed += 1
-                continue
-            kept_lines.append(line)
-        original_text = "\n".join(kept_lines)
+            else:
+                lines.append(line)
+        text = "\n".join(lines)
         if removed:
-            metadata["removed_repeated_lines"] = removed
+            meta["removed_repeated_lines"] = removed
 
-    if doc_type == "Table":
-        cleaned = clean_text(original_text)
-
-    else:
-        cleaned = clean_text(original_text)
-        if doc_type in ("Title", "Header"):
-            metadata["is_header"] = True
-
-    metadata["char_count"] = len(cleaned)
-    metadata["token_estimate"] = len(cleaned) // 4
-    if doc_type == "Text":
-        metadata["section_headers"] = extract_section_headers(cleaned)
-
-    return Document(page_content=cleaned, metadata=metadata)
+    cleaned = _clean(text)
+    if meta.get("type") in ("Title", "Header"):
+        meta["is_header"] = True
+    meta["char_count"] = len(cleaned)
+    meta["token_estimate"] = len(cleaned) // 4
+    if meta.get("type", "Text") == "Text":
+        meta["section_headers"] = _headers(cleaned)
+    return Document(page_content=cleaned, metadata=meta)
 
 
-def parse_documents(docs:list, parser_config: dict | None = None)-> list:
-    cfg = {**DEFAULT_PARSER_CONFIG, **(parser_config or {})}
-    parsed = []
-    failed = 0
-    repeated_by_source: dict[str, set[str]] = {}
+def parse_documents(docs: list, cfg: dict | None = None) -> list:
+    from .config import DEFAULTS
 
-    if cfg["dedupe_repeated_lines"]:
-        repeated_by_source = _collect_repeated_lines_by_source(docs, cfg)
-        total_patterns = sum(len(v) for v in repeated_by_source.values())
-        if total_patterns:
-            logger.info("Detected %d repeated header/footer patterns", total_patterns)
+    c = {**DEFAULTS, **(cfg or {})}
+    dedupe_cfg = {k: c[k] for k in _DEDUPE_KEYS}
 
+    repeated: dict[str, set[str]] = {}
+    if dedupe_cfg["dedupe_repeated_lines"]:
+        try:
+            repeated = _repeated_lines(docs, dedupe_cfg)
+            n = sum(len(v) for v in repeated.values())
+            if n:
+                logger.info("Detected %d repeated header/footer patterns", n)
+        except Exception as e:
+            logger.exception("Header/footer dedupe failed; continuing without dedupe: %s", e)
+            repeated = {}
+
+    parsed, failed = [], 0
     for doc in docs:
         try:
-            source = doc.metadata.get("source", "unknown")
-            repeated_lines = repeated_by_source.get(source, set())
-            parsed_doc = parse_document(doc, repeated_lines=repeated_lines)
-            parsed.append(parsed_doc)
+            src = doc.metadata.get("source", "unknown")
+            parsed.append(parse_document(doc, repeated_lines=repeated.get(src, set())))
         except Exception as e:
             failed += 1
-            source = doc.metadata.get('source','unknown')
-            logger.error(f"Failed to parse document {source}: {e}")
+            logger.exception("Failed to parse document from %s", doc.metadata.get("source", "unknown"))
+
     if failed:
-        logger.warning(f"{failed} document(s) failed to parse")
-    
+        logger.warning("%d document(s) failed to parse", failed)
     return parsed
