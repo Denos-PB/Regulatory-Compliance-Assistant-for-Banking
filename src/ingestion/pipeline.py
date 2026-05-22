@@ -3,7 +3,7 @@ import logging
 import os
 
 from ..logging_config import setup_logging
-from .config import load_ingestion_config
+from ..config import load_ingestion_config
 from .loader import load_documents
 from .parser import parse_documents
 from .robust_extraction import collect_valid_files

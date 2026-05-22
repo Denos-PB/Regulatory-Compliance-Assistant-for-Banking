@@ -2,7 +2,7 @@ import logging
 import os
 from langchain_core.documents import Document
 from unstructured.partition.html import partition_html
-from .config import load_ingestion_config
+from ..config import load_ingestion_config
 from .robust_extraction import assess_extraction_quality, extract_with_fallback
 
 logger = logging.getLogger(__name__)

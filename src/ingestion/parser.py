@@ -87,9 +87,9 @@ def parse_document(doc: Document, repeated_lines: set[str] | None = None) -> Doc
 
 
 def parse_documents(docs: list, cfg: dict | None = None) -> list:
-    from .config import DEFAULTS
+    from ..config import INGESTION_DEFAULTS
 
-    c = {**DEFAULTS, **(cfg or {})}
+    c = {**INGESTION_DEFAULTS, **(cfg or {})}
     dedupe_cfg = {k: c[k] for k in _DEDUPE_KEYS}
 
     repeated: dict[str, set[str]] = {}
