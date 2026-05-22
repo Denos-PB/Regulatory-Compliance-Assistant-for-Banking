@@ -25,6 +25,7 @@ dependencies = [
     "python-magic>=0.4.27",
     "python-multipart>=0.0.28",
     "pyyaml>=6.0.3",
+    "qdrant-client>=1.18.0",
     "tqdm>=4.67.3",
     "unstructured>=0.22.28",
     "unstructured-inference>=1.6.11",
