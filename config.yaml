@@ -41,3 +41,9 @@ ingestion:
   logging:
   level: "INFO"
   file: "logs/ingestion.log"
+
+indexing:
+  chunk_size: 1000
+  chunk_overlap: 200
+  embedding_model: "text-embedding-3-small"
+  embedding_batch_size: 100
