@@ -39,8 +39,8 @@ ingestion:
   output_format: "json"
 
   logging:
-  level: "INFO"
-  file: "logs/ingestion.log"
+    level: "INFO"
+    file: "logs/ingestion.log"
 
 indexing:
   chunk_size: 1000

@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from pathlib import Path
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -54,12 +53,11 @@ def chunk_documents(
     chunks : list[Document] = []
 
     for doc in merged:
-        src = doc.metadata.get("source","unknown")
-        base = os.path.basename(src)
-        for i,chunk in enumerate(splitter.split_documents([doc])):
+        src = doc.metadata.get("source", "unknown")
+        for i, chunk in enumerate(splitter.split_documents([doc])):
             chunk.metadata = dict(chunk.metadata)
             chunk.metadata["chunk_index"] = i
-            chunk.metadata["chunk_id"] = f"{base}::chunk_{i}"
+            chunk.metadata["chunk_id"] = f"{src}::chunk_{i}"
             chunk.metadata["char_count"] = len(chunk.page_content)
             chunk.metadata["token_estimate"] = len(chunk.page_content) // 4
             chunks.append(chunk)
@@ -83,8 +81,10 @@ def save_chunks_json(chunks: list[Document], path: str | Path) -> None:
         json.dump(data,f,indent=2,ensure_ascii=False)
     logger.info("Saved %d chunks to %s", len(chunks), path)
 
+
 if __name__ == "__main__":
     from ..logging_config import setup_logging
+
     setup_logging()
     root = Path(__file__).resolve().parents[2]
     parsed_path = root / "data/processed/parsed_document.json"

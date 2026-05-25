@@ -47,7 +47,7 @@ def embed_chunks(
     
     embedder = _client(model=model,cfg=c)
     texts = [c.page_content for c in chunks]
-    all_vectors = list[list[float]] = []
+    all_vectors: list[list[float]] = []
 
     for start in range(0, len(texts), batch_size):
         batch = texts[start : start + batch_size]
@@ -61,7 +61,7 @@ def embed_chunks(
 
     embedded: list[Document] = []
     for chunk, vector in zip(chunks,all_vectors,strict=True):
-        meta = dict[chunk.metadata]
+        meta = dict(chunk.metadata)
         meta["embedding"]=vector
         meta['embedding_model']=model
         meta['embedding_dim']=len(vector)
@@ -70,8 +70,10 @@ def embed_chunks(
     logger.info("Embedded %d chunks with %s", len(embedded), model)
     return embedded
 
+
 if __name__ == "__main__":
     from ..logging_config import setup_logging
+
     setup_logging()
     root = Path(__file__).resolve().parents[2]
     chunks_path = root / "data/processed/chunks.json"
@@ -80,4 +82,5 @@ if __name__ == "__main__":
     chunks = load_chunks_json(chunks_path)
     embedded = embed_chunks(chunks)
     logger.info("Done. %d chunks ready for vector store.", len(embedded))
-    logger.info("Example chunk_id: %s", embedded[0].metadata.get("chunk_id"))
+    if embedded:
+        logger.info("Example chunk_id: %s", embedded[0].metadata.get("chunk_id"))
