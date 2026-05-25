@@ -29,6 +29,11 @@ INDEXING_DEFAULTS = {
     "chunk_overlap": 200,
     "embedding_model": "text-embedding-3-small",
     "embedding_batch_size": 100,
+    "qdrant_url": "http://localhost:6333",
+    "qdrant_api_key": "",
+    "qdrant_collection": "regulatory_docs",
+    "qdrant_vector_size": 1536,
+    "qdrant_batch_size": 64,
 }
 
 _SECTION_DEFAULTS = {
