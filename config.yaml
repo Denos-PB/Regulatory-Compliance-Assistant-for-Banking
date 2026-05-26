@@ -21,7 +21,6 @@ ingestion:
 
   min_text_length: 50
 
-  # Remove repeated header/footer lines that occur on most pages
   dedupe_repeated_lines: true
   dedupe_min_pages: 10
   dedupe_min_line_length: 25
@@ -54,3 +53,10 @@ indexing:
   qdrant_vector_size: 1536
   qdrant_batch_size: 64
 
+rag:
+  top_k: 5
+  score_threshold: 0.0
+
+  llm_model: "gpt-4o-mini"
+  temperature: 0
+  max_tokens: 1024

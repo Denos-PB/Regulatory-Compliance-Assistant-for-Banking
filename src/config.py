@@ -36,9 +36,18 @@ INDEXING_DEFAULTS = {
     "qdrant_batch_size": 64,
 }
 
+RAG_DEFAULTS = {
+    "top_k": 5,
+    "score_threshold": 0.0,
+    "llm_model": "gpt-4o-mini",
+    "temperature": 0,
+    "max_tokens": 1024,
+}
+
 _SECTION_DEFAULTS = {
     "ingestion": INGESTION_DEFAULTS,
     "indexing": INDEXING_DEFAULTS,
+    "rag": RAG_DEFAULTS,
 }
 
 
@@ -76,3 +85,7 @@ def load_ingestion_config() -> dict:
 
 def load_indexing_config() -> dict:
     return _load_section("indexing")
+
+
+def load_rag_config() -> dict:
+    return _load_section("rag")
