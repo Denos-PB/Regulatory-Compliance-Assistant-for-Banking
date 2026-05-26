@@ -38,8 +38,10 @@ INDEXING_DEFAULTS = {
 
 RAG_DEFAULTS = {
     "top_k": 5,
-    "score_threshold": 0.0,
-    "llm_model": "gpt-4o-mini",
+    "score_threshold": 0.2,
+    "llm_provider": "deepseek",
+    "llm_model": "deepseek-chat",
+    "llm_base_url": "https://api.deepseek.com",
     "temperature": 0,
     "max_tokens": 1024,
 }
