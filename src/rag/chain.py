@@ -11,7 +11,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 def _llm(cfg: dict | None = None) -> ChatDeepSeek:
-    c = {**load_rag_config, **(cfg or {})}
+    c = {**load_rag_config(), **(cfg or {})}
     if not os.getenv("DEEPSEEK_API_KEY"):
         raise RuntimeError("DEEPSEEK_API_KEY is not set. Add it to .env")
     return ChatDeepSeek(

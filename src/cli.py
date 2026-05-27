@@ -30,12 +30,12 @@ def _doctor_env() -> dict[str, Any]:
     )
     add(
         "DEEPSEEK_BASE_URL",
-        bool(os.getenv("DEEPSEEK_BASE_URL") or True),
+        bool(os.getenv("DEEPSEEK_BASE_URL")),
         "Optional if you hardcode base_url in config.yaml. Otherwise set it.",
     )
     add(
         "QDRANT_URL",
-        bool(os.getenv("QDRANT_URL") or True),
+        bool(os.getenv("QDRANT_URL")),
         "Optional; config.yaml has a default. For prod, you can set it in .env.",
     )
 
@@ -115,7 +115,17 @@ def ask(
     )
 
     if json_out:
-        typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
+        output = dict(result)
+        chunks = output.get("chunks")
+        if chunks is not None:
+            serializable_chunks = []
+            for c in chunks:
+                if hasattr(c, "__dict__"):
+                    serializable_chunks.append(c.__dict__)
+                else:
+                    serializable_chunks.append(str(c))
+            output["chunks"] = serializable_chunks
+        typer.echo(json.dumps(output, indent=2, ensure_ascii=False))
         raise typer.Exit(0)
 
     typer.echo("\n=== Answer ===\n")
