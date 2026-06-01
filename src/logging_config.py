@@ -3,10 +3,15 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 def setup_logging(log_dir: str = "logs", log_level: str = "INFO"):
-    os.makedirs(log_dir,exist_ok=True)
+    root = logging.getLogger()
+    if root.handlers:
+        root.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+        return root
 
-    log_file = os.path.join(log_dir,"rag_pipeline.log")
-    logger = logging.getLogger()
+    os.makedirs(log_dir, exist_ok=True)
+
+    log_file = os.path.join(log_dir, "rag_pipeline.log")
+    logger = root
     logger.setLevel(getattr(logging, log_level.upper(), logging.INFO))
 
     file_handler = RotatingFileHandler(

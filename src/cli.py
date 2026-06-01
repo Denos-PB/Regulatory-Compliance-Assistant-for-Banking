@@ -1,51 +1,109 @@
-import os
 import json
-import typer
+import os
 from typing import Any, Optional
 
-app = typer.Typer(help="Regulatory Compliance Assistant CLI")
+import typer
+
+from src.config import load_data_config
+
+app = typer.Typer(
+    help="Regulatory Compliance Assistant — use `run` for the full pipeline.",
+)
 
 
 def _doctor_env() -> dict[str, Any]:
     checks = []
 
-    def add(name: str, ok: bool, hint: str) -> None:
-        checks.append(
-            {
-                "env": name,
-                "ok": ok,
-                "hint": hint,
-            }
-        )
+    def add(name: str, ok: bool, hint: str, required: bool = True) -> None:
+        checks.append({"env": name, "ok": ok, "hint": hint, "required": required})
 
-    add(
-        "OPENAI_API_KEY",
-        bool(os.getenv("OPENAI_API_KEY")),
-        "Required for embeddings (indexing + retrieval). Put it in .env.",
-    )
-    add(
-        "DEEPSEEK_API_KEY",
-        bool(os.getenv("DEEPSEEK_API_KEY")),
-        "Required for generation in chain.py (if using DeepSeek). Put it in .env.",
-    )
+    add("OPENAI_API_KEY", bool(os.getenv("OPENAI_API_KEY")), "Embeddings (index + retrieve).")
+    add("DEEPSEEK_API_KEY", bool(os.getenv("DEEPSEEK_API_KEY")), "Answer generation.")
     add(
         "DEEPSEEK_BASE_URL",
         bool(os.getenv("DEEPSEEK_BASE_URL")),
-        "Optional if you hardcode base_url in config.yaml. Otherwise set it.",
+        "Optional; defaults to config rag.llm_base_url.",
+        required=False,
     )
     add(
         "QDRANT_URL",
         bool(os.getenv("QDRANT_URL")),
-        "Optional; config.yaml has a default. For prod, you can set it in .env.",
+        "Optional; defaults to config indexing.qdrant_url.",
+        required=False,
     )
-
     return {"checks": checks}
+
+
+def _print_ask_result(result: dict[str, Any]) -> None:
+    typer.echo("\n=== Answer ===\n")
+    typer.echo(result.get("answer", ""))
+    sources = result.get("sources") or []
+    if sources:
+        typer.echo("\n=== Sources ===\n")
+        for s in sources:
+            typer.echo(f"- {s}")
+
+
+def _default_paths() -> tuple[str, str]:
+    data = load_data_config()
+    return data["raw_path"], data["processed_path"]
+
+
+@app.command()
+def run(
+    question: Optional[str] = typer.Option(
+        None,
+        "-q",
+        "--question",
+        help="Optional question to answer after indexing",
+    ),
+    raw_dir: Optional[str] = typer.Option(None, "--raw-dir", help="Folder with raw PDFs/HTMLs"),
+    output_dir: Optional[str] = typer.Option(None, "--output-dir", help="Processed output folder"),
+    recreate: bool = typer.Option(False, "--recreate", help="Recreate Qdrant collection"),
+    skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Use existing parsed_document.json"),
+    skip_index: bool = typer.Option(False, "--skip-index", help="Skip indexing (ingest only, or ask only)"),
+    save_chunks: bool = typer.Option(False, "--save-chunks", help="Write chunks.json checkpoint"),
+    top_k: Optional[int] = typer.Option(None, "--top-k", help="Chunks to retrieve when asking"),
+    source_filter: Optional[str] = typer.Option(None, "--source-filter", help="Limit retrieval to one source path"),
+    json_out: bool = typer.Option(False, "--json", help="JSON output"),
+):
+    """Ingest → index → optional ask (one command)."""
+    from src.pipeline import run_all
+
+    default_raw, default_out = _default_paths()
+    try:
+        summary = run_all(
+            raw_dir=raw_dir or default_raw,
+            output_dir=output_dir or default_out,
+            question=question,
+            recreate_collection=recreate,
+            skip_ingest=skip_ingest,
+            skip_index=skip_index,
+            save_chunks=save_chunks,
+            top_k=top_k,
+            source_filter=source_filter,
+        )
+    except Exception as e:
+        typer.secho(f"Pipeline failed: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from e
+
+    if json_out:
+        typer.echo(json.dumps(summary, indent=2, ensure_ascii=False))
+        raise typer.Exit(0)
+
+    typer.echo(
+        f"\nDone. Ingested {summary['ingested_documents']} document(s), "
+        f"indexed {summary['indexed_points']} point(s)."
+    )
+    if summary.get("answer"):
+        _print_ask_result(summary)
 
 
 @app.command()
 def doctor(
-    json_out: bool = typer.Option(False, "--json", help="Output machine-readable JSON"),
+    json_out: bool = typer.Option(False, "--json", help="JSON output"),
 ):
+    """Check environment variables."""
     result = _doctor_env()
     if json_out:
         typer.echo(json.dumps(result, indent=2))
@@ -53,60 +111,21 @@ def doctor(
 
     typer.echo("Environment checks:")
     for c in result["checks"]:
-        status = "OK" if c["ok"] else "MISSING"
-        typer.echo(f"- {c['env']}: {status}")
-        if not c["ok"]:
-            typer.echo(f"  Hint: {c['hint']}")
-
-
-@app.command()
-def ingest(
-    raw_dir: str = typer.Option("data/raw", "--raw-dir", help="Folder with raw PDFs/HTMLs"),
-    output_dir: str = typer.Option("data/processed", "--output-dir", help="Where parsed JSON is saved"),
-):
-    from src.ingestion.pipeline import run_pipeline
-
-    run_pipeline(raw_dir=raw_dir, output_dir=output_dir)
-
-
-@app.command()
-def index(
-    parsed_path: Optional[str] = typer.Option(
-        None,
-        "--parsed-path",
-        help="Path to parsed_document.json. Defaults to data/processed/parsed_document.json",
-    ),
-    output_dir: str = typer.Option("data/processed", "--output-dir", help="Folder with processed artifacts"),
-    recreate: bool = typer.Option(False, "--recreate", help="Recreate Qdrant collection (destructive)"),
-    save_chunks: bool = typer.Option(True, "--save-chunks", help="Save chunks.json (debug/re-embed checkpoint)"),
-):
-    from src.indexing.pipeline import run_indexing_pipeline
-
-    run_indexing_pipeline(
-        parsed_path=parsed_path,
-        output_dir=output_dir,
-        save_chunks=save_chunks,
-        recreate_collection=recreate,
-    )
+        label = "OK" if c["ok"] else ("MISSING" if c.get("required", True) else "optional")
+        typer.echo(f"- {c['env']}: {label}")
+        if not c["ok"] and c.get("required", True):
+            typer.echo(f"  {c['hint']}")
 
 
 @app.command()
 def ask(
-    question: str = typer.Argument(..., help="User question to answer from your regulatory corpus"),
-    top_k: Optional[int] = typer.Option(None, "--top-k", help="How many chunks to retrieve"),
-    source_filter: Optional[str] = typer.Option(
-        None,
-        "--source-filter",
-        help="Optional: restrict retrieval to a specific document source path (matches payload 'source')",
-    ),
-    json_out: bool = typer.Option(False, "--json", help="Output machine-readable JSON"),
+    question: str = typer.Argument(..., help="Question to answer"),
+    top_k: Optional[int] = typer.Option(None, "--top-k", help="Chunks to retrieve"),
+    source_filter: Optional[str] = typer.Option(None, "--source-filter", help="Filter by document source"),
+    json_out: bool = typer.Option(False, "--json", help="JSON output"),
 ):
-    try:
-        from src.rag.chain import answer  # your chain.py must expose answer()
-    except Exception as e:
-        raise typer.Exit(
-            f"Cannot import src.rag.chain.answer. Make sure src/rag/chain.py defines `answer()`.\nDetails: {e}"
-        )
+    """Query the index only (no ingest/index)."""
+    from src.rag.chain import answer
 
     result: dict[str, Any] = answer(
         question,
@@ -118,24 +137,13 @@ def ask(
         output = dict(result)
         chunks = output.get("chunks")
         if chunks is not None:
-            serializable_chunks = []
-            for c in chunks:
-                if hasattr(c, "__dict__"):
-                    serializable_chunks.append(c.__dict__)
-                else:
-                    serializable_chunks.append(str(c))
-            output["chunks"] = serializable_chunks
+            output["chunks"] = [
+                item.__dict__ if hasattr(item, "__dict__") else str(item) for item in chunks
+            ]
         typer.echo(json.dumps(output, indent=2, ensure_ascii=False))
         raise typer.Exit(0)
 
-    typer.echo("\n=== Answer ===\n")
-    typer.echo(result.get("answer", ""))
-
-    sources = result.get("sources") or []
-    if sources:
-        typer.echo("\n=== Sources ===\n")
-        for s in sources:
-            typer.echo(f"- {s}")
+    _print_ask_result(result)
 
 
 if __name__ == "__main__":

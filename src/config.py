@@ -7,6 +7,12 @@ logger = logging.getLogger(__name__)
 
 _CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 
+DATA_DEFAULTS = {
+    "raw_path": "data/raw",
+    "processed_path": "data/processed",
+    "logs": "logs",
+}
+
 INGESTION_DEFAULTS = {
     "min_text_length": 50,
     "skip_categories": ["Image", "Figure"],
@@ -38,8 +44,7 @@ INDEXING_DEFAULTS = {
 
 RAG_DEFAULTS = {
     "top_k": 5,
-    "score_threshold": 0.2,
-    "llm_provider": "deepseek",
+    "score_threshold": 0.0,
     "llm_model": "deepseek-chat",
     "llm_base_url": "https://api.deepseek.com",
     "temperature": 0,
@@ -47,6 +52,7 @@ RAG_DEFAULTS = {
 }
 
 _SECTION_DEFAULTS = {
+    "data": DATA_DEFAULTS,
     "ingestion": INGESTION_DEFAULTS,
     "indexing": INDEXING_DEFAULTS,
     "rag": RAG_DEFAULTS,
@@ -75,10 +81,18 @@ def _load_section(section: str) -> dict:
         logger.warning("Missing or invalid '%s' section in config; using defaults", section)
         return cfg
 
+    # Support legacy key name in config.yaml
+    if section == "data" and "processed_data" in data and "processed_path" not in data:
+        data["processed_path"] = data["processed_data"]
+
     for key in defaults:
         if key in data:
             cfg[key] = data[key]
     return cfg
+
+
+def load_data_config() -> dict:
+    return _load_section("data")
 
 
 def load_ingestion_config() -> dict:
