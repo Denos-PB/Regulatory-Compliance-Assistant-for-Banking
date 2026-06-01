@@ -1,11 +1,13 @@
 import logging
 import os
 from typing import Any
+
 from dotenv import load_dotenv
 from langchain_deepseek import ChatDeepSeek
+
 from ..config import load_rag_config
 from .prompts import build_messages
-from .retriever import RetrievedChunk, format_context, retrieve
+from .retriever import format_context, retrieve
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -18,7 +20,8 @@ def _llm(cfg: dict | None = None) -> ChatDeepSeek:
         model=c["llm_model"],
         temperature=c["temperature"],
         max_tokens=c["max_tokens"],
-        api_key=os.getenv("DEEPSEEK_API_KEY")
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        api_base=os.getenv("DEEPSEEK_BASE_URL") or c["llm_base_url"],
     )
 
 def answer(
@@ -36,7 +39,6 @@ def answer(
             "chunks": [],
         }
     
-    rag_cfg = {**load_rag_config(), **(cfg or {})}
     chunks = retrieve(
         query,
         top_k=top_k,
