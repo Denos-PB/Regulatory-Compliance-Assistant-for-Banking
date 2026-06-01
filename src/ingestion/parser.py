@@ -26,19 +26,6 @@ def _norm_line(line: str) -> str:
     return re.sub(r"\b\d+\b", "#", line).lower()
 
 
-def _headers(text: str) -> list:
-    out = []
-    for line in text.split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        if re.match(r"^\d+(\.\d+)*\s+", line) or (line.isupper() and len(line) < 100):
-            out.append(line)
-        elif not line.endswith(".") and len(line) < 100 and line[0].isupper():
-            out.append(line)
-    return out
-
-
 def _repeated_lines(docs: list, cfg: dict) -> dict[str, set[str]]:
     by_source: dict[str, list[set[str]]] = {}
     lo, hi = cfg["dedupe_min_line_length"], cfg["dedupe_max_line_length"]
@@ -81,8 +68,6 @@ def parse_document(doc: Document, repeated_lines: set[str] | None = None) -> Doc
         meta["is_header"] = True
     meta["char_count"] = len(cleaned)
     meta["token_estimate"] = len(cleaned) // 4
-    if meta.get("type", "Text") == "Text":
-        meta["section_headers"] = _headers(cleaned)
     return Document(page_content=cleaned, metadata=meta)
 
 

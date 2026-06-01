@@ -80,17 +80,3 @@ def save_chunks_json(chunks: list[Document], path: str | Path) -> None:
     with open(path,"w",encoding="utf-8") as f:
         json.dump(data,f,indent=2,ensure_ascii=False)
     logger.info("Saved %d chunks to %s", len(chunks), path)
-
-
-if __name__ == "__main__":
-    from ..logging_config import setup_logging
-
-    setup_logging()
-    root = Path(__file__).resolve().parents[2]
-    parsed_path = root / "data/processed/parsed_document.json"
-    out_path = root / "data/processed/chunks.json"
-    if not parsed_path.exists():
-        raise SystemExit(f"Run pipeline first. Missing: {parsed_path}")
-    parsed = load_parsed_json(parsed_path)
-    chunks = chunk_documents(parsed)
-    save_chunks_json(chunks, out_path)
