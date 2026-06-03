@@ -1,13 +1,11 @@
 import logging
 import os
 
-from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 
 from ..config import load_indexing_config
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 
@@ -18,6 +16,19 @@ def _client(model: str | None = None, cfg: dict | None = None) -> OpenAIEmbeddin
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env")
     return OpenAIEmbeddings(model=model, api_key=api_key)
+
+
+def embed_query(
+    query: str,
+    *,
+    model: str | None = None,
+    cfg: dict | None = None,
+) -> list[float]:
+    """Embed a single search query (used by the retriever)."""
+    if not query or not query.strip():
+        return []
+    embedder = _client(model=model, cfg=cfg)
+    return embedder.embed_query(query.strip())
 
 
 def embed_chunks(

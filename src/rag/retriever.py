@@ -2,13 +2,10 @@ import logging
 import os
 from dataclasses import dataclass
 from typing import Any
-from dotenv import load_dotenv
-
-from ..config import load_indexing_config, load_rag_config
-from ..indexing.embedder import _client as _embedding_client
+from ..config import load_rag_config
+from ..indexing.embedder import embed_query
 from ..indexing.store import search as qdrant_search
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -32,14 +29,6 @@ class RetrievedChunk:
             parts.append(f"pp.{self.page_start}-{end}")
         parts.append(self.chunk_id)
         return " | ".join(parts)
-
-def _embed_query(query: str, cfg: dict | None = None) -> list[float]:
-    indexing_cfg = {**load_indexing_config(), **(cfg or {})}
-    if not os.getenv("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env")
-    embedder = _embedding_client(cfg=indexing_cfg)
-    return embedder.embed_query(query.strip())
-
 
 def _hit_to_chunk(hit: Any) -> RetrievedChunk | None:
     payload = hit.payload or {}
@@ -78,7 +67,9 @@ def retrieve(
     )
 
     logger.info("Retrieving top_%d for query: %s", top_k, query[:80])
-    query_vector = _embed_query(query, cfg=cfg)
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env")
+    query_vector = embed_query(query, cfg=cfg)
     response = qdrant_search(
         query_vector,
         limit=top_k,

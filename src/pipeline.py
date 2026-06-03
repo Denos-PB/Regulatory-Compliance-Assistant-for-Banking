@@ -6,8 +6,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
-
 from .config import load_data_config, load_ingestion_config, load_indexing_config
 from .ingestion.loader import load_documents
 from .ingestion.parser import parse_documents
@@ -17,7 +15,6 @@ from .indexing.embedder import embed_chunks
 from .indexing.store import upsert_chunks
 from .logging_config import setup_logging
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 
