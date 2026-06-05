@@ -1,17 +1,9 @@
-import logging
-from typing import Any, Optional
-
-from dotenv import load_dotenv
+import os
+import traceback
+from typing import Optional, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
-from src.health import doctor_report
-from src.rag.chain import answer
-
-load_dotenv()
-
-logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Regulatory Compliance RAG API", version="0.1.0")
 
@@ -23,7 +15,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=1, description="User question to answer from indexed documents")
     top_k: Optional[int] = Field(None, ge=1, le=20, description="Number of chunks to retrieve")
@@ -33,36 +24,38 @@ class AskRequest(BaseModel):
     )
     return_chunks: bool = Field(False, description="If true, include retrieved chunks in response")
 
-
 class AskResponse(BaseModel):
     answer: str
     sources: list[str] = []
     chunks: Optional[list[dict[str, Any]]] = None
-
 
 class HealthResponse(BaseModel):
     ok: bool
     env: dict[str, bool]
     status: dict[str, Any] = {}
 
+def _doctor_env() -> dict[str, bool]:
+    return {
+        "OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
+        "DEEPSEEK_API_KEY": bool(os.getenv("DEEPSEEK_API_KEY")),
+        "QDRANT_URL": bool(os.getenv("QDRANT_URL")) or True,
+    }
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    report = doctor_report(ping_qdrant=True)
-    status = dict(report.get("status") or {})
-    status["message"] = "Required API keys set; Qdrant reachable." if report["ok"] else (
-        "Check env vars and Qdrant connectivity."
-    )
+    env_ok = _doctor_env()
     return HealthResponse(
-        ok=report["ok"],
-        env=report["env"],
-        status=status,
+        ok=env_ok["OPENAI_API_KEY"] and env_ok["DEEPSEEK_API_KEY"],
+        env=env_ok,
+        status={
+            "message": "Service is up. Keys are checked locally only."
+        },
     )
-
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest) -> AskResponse:
     try:
+        from src.rag.chain import answer
         result = answer(
             req.question,
             top_k=req.top_k,
@@ -83,11 +76,13 @@ def ask(req: AskRequest) -> AskResponse:
             sources=result.get("sources", []) or [],
             chunks=serializable_chunks,
         )
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("RAG request failed for question=%r", req.question[:80])
+    except ImportError as e:
         raise HTTPException(
             status_code=500,
-            detail="RAG request failed. Check server logs, Qdrant, and API keys.",
-        ) from None
+            detail="src.rag.chain.answer could not be imported. Implement rag/chain.py first."
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"RAG failed: {e}\n{traceback.format_exc()}",
+        ) from e

@@ -1,17 +1,37 @@
 import json
+import os
 from typing import Any, Optional
 
 import typer
-from dotenv import load_dotenv
 
 from src.config import load_data_config
-from src.health import doctor_report
-
-load_dotenv()
 
 app = typer.Typer(
     help="Regulatory Compliance Assistant — use `run` for the full pipeline.",
 )
+
+
+def _doctor_env() -> dict[str, Any]:
+    checks = []
+
+    def add(name: str, ok: bool, hint: str, required: bool = True) -> None:
+        checks.append({"env": name, "ok": ok, "hint": hint, "required": required})
+
+    add("OPENAI_API_KEY", bool(os.getenv("OPENAI_API_KEY")), "Embeddings (index + retrieve).")
+    add("DEEPSEEK_API_KEY", bool(os.getenv("DEEPSEEK_API_KEY")), "Answer generation.")
+    add(
+        "DEEPSEEK_BASE_URL",
+        bool(os.getenv("DEEPSEEK_BASE_URL")),
+        "Optional; defaults to config rag.llm_base_url.",
+        required=False,
+    )
+    add(
+        "QDRANT_URL",
+        bool(os.getenv("QDRANT_URL")),
+        "Optional; defaults to config indexing.qdrant_url.",
+        required=False,
+    )
+    return {"checks": checks}
 
 
 def _print_ask_result(result: dict[str, Any]) -> None:
@@ -83,10 +103,10 @@ def run(
 def doctor(
     json_out: bool = typer.Option(False, "--json", help="JSON output"),
 ):
-    """Check environment variables and Qdrant connectivity."""
-    result = doctor_report(ping_qdrant=True)
+    """Check environment variables."""
+    result = _doctor_env()
     if json_out:
-        typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
+        typer.echo(json.dumps(result, indent=2))
         raise typer.Exit(0)
 
     typer.echo("Environment checks:")
@@ -95,13 +115,6 @@ def doctor(
         typer.echo(f"- {c['env']}: {label}")
         if not c["ok"] and c.get("required", True):
             typer.echo(f"  {c['hint']}")
-
-    qdrant = result.get("qdrant")
-    if qdrant:
-        label = "OK" if qdrant["ok"] else "FAIL"
-        typer.echo(f"\nQdrant ({qdrant.get('qdrant_url')}): {label}")
-        if not qdrant["ok"]:
-            typer.echo(f"  {qdrant.get('message')}")
 
 
 @app.command()

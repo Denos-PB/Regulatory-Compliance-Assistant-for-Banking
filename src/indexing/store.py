@@ -2,6 +2,7 @@ import logging
 import os
 import uuid
 from pathlib import Path
+from dotenv import load_dotenv
 from langchain_core.documents import Document
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -15,6 +16,7 @@ from qdrant_client.models import (
 )
 from ..config import load_indexing_config
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 _PAYLOAD_KEYS = (

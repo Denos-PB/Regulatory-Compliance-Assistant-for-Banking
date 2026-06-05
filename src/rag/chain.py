@@ -2,12 +2,14 @@ import logging
 import os
 from typing import Any
 
+from dotenv import load_dotenv
 from langchain_deepseek import ChatDeepSeek
 
 from ..config import load_rag_config
 from .prompts import build_messages
 from .retriever import format_context, retrieve
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 def _llm(cfg: dict | None = None) -> ChatDeepSeek:
