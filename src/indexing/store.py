@@ -9,13 +9,17 @@ from qdrant_client.models import (
     Distance,
     FieldCondition,
     Filter,
+    Fusion,
+    FusionQuery,
     MatchValue,
     PayloadSchemaType,
     PointStruct,
+    Prefetch,
+    SparseVectorParams,
     VectorParams,
 )
-from ..config import load_indexing_config
-
+from ..config import load_indexing_config, load_rag_config
+from .sparse import embed_sparse_documents
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -53,33 +57,88 @@ def _build_payload(doc: Document) -> dict:
         raise ValueError("Each chunk must have metadata['chunk_id'] before upsert")
     return payload
 
+def _hybrid_enabled(cfg: dict | None = None) -> bool:
+    rag = {**load_rag_config(), **(cfg or {})}
+    return bool(rag.get("hybrid_enabled"))
+
+
+def _build_filter(source_filter: str | None) -> Filter | None:
+    if not source_filter:
+        return None
+    return Filter(
+        must=[FieldCondition(key="source", match=MatchValue(value=source_filter))]
+    )
+
 def ensure_collection(
     client: QdrantClient,
     collection_name: str,
     vector_size: int,
     *,
     recreate: bool = False,
+    hybrid: bool = False,
+    dense_name: str = "dense",
+    sparse_name: str = "sparse",
 ) -> None:
     exists = client.collection_exists(collection_name)
+
     if exists and not recreate:
         info = client.get_collection(collection_name)
-        size = info.config.params.vectors.size
+        vectors = info.config.params.vectors
+
+        if hybrid:
+            if not isinstance(vectors, dict) or dense_name not in vectors:
+                raise ValueError(
+                    f"Collection {collection_name} is not hybrid "
+                    f"(missing vector '{dense_name}'). Run: cli run --recreate"
+                )
+            size = vectors[dense_name].size
+            sparse_cfg = info.config.params.sparse_vectors
+            if not sparse_cfg or sparse_name not in sparse_cfg:
+                raise ValueError(
+                    f"Collection {collection_name} has no sparse vector '{sparse_name}'. "
+                    "Run: cli run --recreate"
+                )
+        else:
+            if isinstance(vectors, dict):
+                if dense_name in vectors:
+                    size = vectors[dense_name].size
+                else:
+                    raise ValueError("Hybrid collection exists but hybrid=False in config.")
+            else:
+                size = vectors.size
+
         if size != vector_size:
             raise ValueError(
                 f"Collection {collection_name} has vector size {size}, "
-                f"expected {vector_size}. Use recreate=True or a new collection name."
+                f"expected {vector_size}. Use recreate=True."
             )
         logger.info("Collection %s already exists", collection_name)
         return
-    
+
     if exists and recreate:
         client.delete_collection(collection_name)
         logger.warning("Deleted collection %s (recreate=True)", collection_name)
 
-    client.create_collection(
-        collection_name=collection_name,
-        vectors_config=VectorParams(size=vector_size,distance=Distance.COSINE)
-    )
+    if hybrid:
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config={
+                dense_name: VectorParams(size=vector_size, distance=Distance.COSINE),
+            },
+            sparse_vectors_config={
+                sparse_name: SparseVectorParams(),
+            },
+        )
+        logger.info(
+            "Created hybrid collection %s (dense=%s, sparse=%s, dim=%d)",
+            collection_name, dense_name, sparse_name, vector_size,
+        )
+    else:
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+        )
+        logger.info("Created collection %s (dim=%d, cosine)", collection_name, vector_size)
 
     for field in ("source", "chunk_id"):
         client.create_payload_index(
@@ -99,29 +158,47 @@ def upsert_chunks(
     collection = c["qdrant_collection"]
     vector_size = c["qdrant_vector_size"]
     batch_size = c["qdrant_batch_size"]
+    dense_name = c["dense_vector_name"]
+    sparse_name = c["sparse_vector_name"]
+    hybrid = _hybrid_enabled(cfg)
 
     if not embedded:
         logger.warning("No embedded chunks to upsert")
         return 0
-    
+
     client = _qdrant_client(c)
-    ensure_collection(client,collection,vector_size,recreate=recreate)
+    ensure_collection(
+        client, collection, vector_size,
+        recreate=recreate, hybrid=hybrid,
+        dense_name=dense_name, sparse_name=sparse_name,
+    )
+
+    sparse_vectors = []
+    if hybrid:
+        texts = [doc.page_content for doc in embedded]
+        sparse_vectors = embed_sparse_documents(texts, cfg=c)
+        if len(sparse_vectors) != len(embedded):
+            raise RuntimeError("Sparse embedding count mismatch")
 
     points: list[PointStruct] = []
-    for doc in embedded:
-        vector = doc.metadata.get("embedding")
-        if not vector:
-            raise ValueError(f"Missing embedding for chunk {doc.metadata.get('chunk_id')}")
-        if len(vector) != vector_size:
-            raise ValueError(
-                f"Vector dim {len(vector)} != {vector_size} "
-                f"for chunk {doc.metadata.get('chunk_id')}"
-            )
+    for i, doc in enumerate(embedded):
+        dense = doc.metadata.get("embedding")
+        if not dense:
+            raise ValueError(f"Missing embedding for {doc.metadata.get('chunk_id')}")
+        if len(dense) != vector_size:
+            raise ValueError(f"Vector dim mismatch for {doc.metadata.get('chunk_id')}")
 
-        chunk_id = doc.metadata["chunk_id"]
+        if hybrid:
+            vector = {
+                dense_name: dense,
+                sparse_name: sparse_vectors[i],
+            }
+        else:
+            vector = dense
+
         points.append(
             PointStruct(
-                id = _point_id(chunk_id),
+                id=_point_id(doc.metadata["chunk_id"]),
                 vector=vector,
                 payload=_build_payload(doc),
             )
@@ -148,17 +225,56 @@ def search(
     c = {**load_indexing_config(), **(cfg or {})}
     client = _qdrant_client(c)
     collection = c["qdrant_collection"]
+    dense_name = c["dense_vector_name"]
+    hybrid = _hybrid_enabled(cfg)
 
-    query_filter = None
-    if source_filter:
-        query_filter = Filter(
-            must=[FieldCondition(key="source", match=MatchValue(value=source_filter))]
-        )
+    kwargs = {
+        "collection_name": collection,
+        "query": query_vector,
+        "limit": limit,
+        "query_filter": _build_filter(source_filter),
+        "with_payload": True,
+    }
+    if hybrid:
+        kwargs["using"] = dense_name
+
+    return client.query_points(**kwargs)
+
+def search_hybrid(
+    dense_vector: list[float],
+    sparse_vector,
+    *,
+    limit: int = 5,
+    prefetch_limit: int = 20,
+    source_filter: str | None = None,
+    cfg: dict | None = None,
+):
+    c = {**load_indexing_config(), **(cfg or {})}
+    rag = load_rag_config()
+    client = _qdrant_client(c)
+    collection = c["qdrant_collection"]
+    dense_name = c["dense_vector_name"]
+    sparse_name = c["sparse_vector_name"]
+    prefetch_limit = prefetch_limit or rag.get("hybrid_prefetch_limit", 20)
 
     return client.query_points(
         collection_name=collection,
-        query=query_vector,
+        prefetch=[
+            Prefetch(
+                query=dense_vector,
+                using=dense_name,
+                limit=prefetch_limit,
+                filter=_build_filter(source_filter),
+            ),
+            Prefetch(
+                query=sparse_vector,
+                using=sparse_name,
+                limit=prefetch_limit,
+                filter=_build_filter(source_filter),
+            ),
+        ],
+        query=FusionQuery(fusion=Fusion.RRF),
         limit=limit,
-        query_filter=query_filter,
+        query_filter=_build_filter(source_filter),
         with_payload=True,
     )

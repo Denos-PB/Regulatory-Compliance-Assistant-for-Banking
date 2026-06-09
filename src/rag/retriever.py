@@ -3,10 +3,11 @@ import os
 from dataclasses import dataclass
 from typing import Any
 from dotenv import load_dotenv
-
 from ..config import load_indexing_config, load_rag_config
 from ..indexing.embedder import _client as _embedding_client
 from ..indexing.store import search as qdrant_search
+from ..indexing.sparse import embed_sparse_query
+from ..indexing.store import search_hybrid
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -78,13 +79,29 @@ def retrieve(
     )
 
     logger.info("Retrieving top_%d for query: %s", top_k, query[:80])
-    query_vector = _embed_query(query, cfg=cfg)
-    response = qdrant_search(
-        query_vector,
-        limit=top_k,
-        source_filter=source_filter,
-        cfg=cfg,
-    )
+    hybrid = bool(rag_cfg.get("hybrid_enabled"))
+    prefetch_limit = rag_cfg.get("hybrid_prefetch_limit", 20)
+    if hybrid:
+        logger.info("Retrieving (hybrid) top_%d for query: %s", top_k, query[:80])
+        dense_vector = _embed_query(query, cfg=cfg)
+        sparse_vector = embed_sparse_query(query, cfg=cfg)
+        response = search_hybrid(
+            dense_vector,
+            sparse_vector,
+            limit=top_k,
+            prefetch_limit=prefetch_limit,
+            source_filter=source_filter,
+            cfg=cfg,
+        )
+    else:
+        logger.info("Retrieving (dense) top_%d for query: %s", top_k, query[:80])
+        dense_vector = _embed_query(query, cfg=cfg)
+        response = qdrant_search(
+            dense_vector,
+            limit=top_k,
+            source_filter=source_filter,
+            cfg=cfg,
+        )
 
     chunks: list[RetrievedChunk] = []
     for hit in response.points:
