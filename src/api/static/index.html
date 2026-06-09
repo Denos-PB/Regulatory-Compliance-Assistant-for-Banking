@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Regulatory Compliance Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/css/main.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M24 4L6 14v20l18 10 18-10V14L24 4z" stroke="currentColor" stroke-width="1.5" />
+            <path d="M24 14v20M14 19l20 10M34 19L14 29" stroke="currentColor" stroke-width="1.2" opacity="0.6" />
+          </svg>
+        </div>
+        <div>
+          <p class="brand-eyebrow">Institutional</p>
+          <h1 class="brand-title">Compliance<br />Assistant</h1>
+        </div>
+      </div>
+
+      <p class="sidebar-lead">
+        Grounded answers from indexed regulatory corpora — PCI DSS, Basel III, and your uploaded policy library.
+      </p>
+
+      <div class="compliance-badge">
+        <span class="badge-dot" id="status-dot" aria-hidden="true"></span>
+        <span id="status-label">Checking service…</span>
+      </div>
+
+      <section class="panel">
+        <h2 class="panel-title">Suggested inquiries</h2>
+        <ul class="prompt-list" id="prompt-list">
+          <li><button type="button" class="prompt-chip" data-prompt="What are the PCI DSS requirements for storing cardholder data?">PCI DSS cardholder data</button></li>
+          <li><button type="button" class="prompt-chip" data-prompt="How is capital adequacy defined under Basel III?">Basel III capital adequacy</button></li>
+          <li><button type="button" class="prompt-chip" data-prompt="What documentation is required for regulatory audit readiness?">Audit readiness documentation</button></li>
+          <li><button type="button" class="prompt-chip" data-prompt="Summarize key risk management principles for banking compliance.">Risk management principles</button></li>
+        </ul>
+      </section>
+
+      <section class="panel panel-settings">
+        <h2 class="panel-title">Retrieval settings</h2>
+        <label class="field">
+          <span>Context depth <strong id="top-k-value">5</strong></span>
+          <input type="range" id="top-k" min="3" max="12" value="5" />
+        </label>
+        <label class="field">
+          <span>Document scope</span>
+          <select id="source-filter">
+            <option value="">All indexed documents</option>
+          </select>
+        </label>
+        <label class="field checkbox-field">
+          <input type="checkbox" id="show-sources" checked />
+          <span>Show source citations</span>
+        </label>
+      </section>
+
+      <footer class="sidebar-footer">
+        <p>Answers are generated from retrieved excerpts only. Verify against official regulatory text before operational use.</p>
+        <button type="button" class="text-btn" id="clear-chat">Clear conversation</button>
+      </footer>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-header">
+        <div>
+          <h2 class="chat-heading">Regulatory inquiry desk</h2>
+          <p class="chat-subheading">Hybrid retrieval · cited responses · closed-book generation</p>
+        </div>
+        <div class="header-meta">
+          <span class="meta-pill">RAG</span>
+          <span class="meta-pill meta-pill--gold">Hybrid search</span>
+        </div>
+      </header>
+
+      <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions">
+        <article class="message message--assistant welcome-card">
+          <div class="avatar avatar--assistant" aria-hidden="true">RC</div>
+          <div class="bubble">
+            <p class="welcome-greeting">Welcome to the compliance desk.</p>
+            <p>Ask a question about your indexed regulatory documents. Each answer includes traceable source citations from the knowledge base.</p>
+            <p class="muted">Select a suggested inquiry or type your own question below.</p>
+          </div>
+        </article>
+      </div>
+
+      <form class="composer" id="composer" autocomplete="off">
+        <div class="composer-inner">
+          <label for="question" class="sr-only">Your question</label>
+          <textarea
+            id="question"
+            name="question"
+            rows="1"
+            placeholder="e.g. What are the network segmentation requirements under PCI DSS?"
+            required
+          ></textarea>
+          <button type="submit" class="send-btn" id="send-btn" aria-label="Send question">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+        <p class="composer-hint">Press <kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for new line</p>
+      </form>
+    </main>
+  </div>
+
+  <script src="/assets/js/app.js" type="module"></script>
+</body>
+</html>
