@@ -40,6 +40,9 @@ INDEXING_DEFAULTS = {
     "qdrant_collection": "regulatory_docs",
     "qdrant_vector_size": 1536,
     "qdrant_batch_size": 64,
+    "sparse_model": "Qdrant/bm25",
+    "dense_vector_name": "dense",
+    "sparse_vector_name": "sparse",
 }
 
 RAG_DEFAULTS = {
@@ -49,6 +52,8 @@ RAG_DEFAULTS = {
     "llm_base_url": "https://api.deepseek.com",
     "temperature": 0,
     "max_tokens": 1024,
+    "hybrid_enabled": True,
+    "hybrid_prefetch_limit": 20,
 }
 
 _SECTION_DEFAULTS = {

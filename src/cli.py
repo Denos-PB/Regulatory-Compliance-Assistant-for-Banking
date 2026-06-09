@@ -1,10 +1,11 @@
 import json
 import os
 from typing import Any, Optional
-
+from dotenv import load_dotenv
 import typer
-
 from src.config import load_data_config
+
+load_dotenv()
 
 app = typer.Typer(
     help="Regulatory Compliance Assistant — use `run` for the full pipeline.",
