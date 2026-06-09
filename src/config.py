@@ -86,7 +86,6 @@ def _load_section(section: str) -> dict:
         logger.warning("Missing or invalid '%s' section in config; using defaults", section)
         return cfg
 
-    # Support legacy key name in config.yaml
     if section == "data" and "processed_data" in data and "processed_path" not in data:
         data["processed_path"] = data["processed_data"]
 

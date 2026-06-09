@@ -57,9 +57,8 @@ def _build_payload(doc: Document) -> dict:
         raise ValueError("Each chunk must have metadata['chunk_id'] before upsert")
     return payload
 
-def _hybrid_enabled(cfg: dict | None = None) -> bool:
-    rag = {**load_rag_config(), **(cfg or {})}
-    return bool(rag.get("hybrid_enabled"))
+def _hybrid_enabled() -> bool:
+    return bool(load_rag_config().get("hybrid_enabled"))
 
 
 def _build_filter(source_filter: str | None) -> Filter | None:
@@ -146,7 +145,6 @@ def ensure_collection(
             field_name=field,
             field_schema=PayloadSchemaType.KEYWORD,
         )
-    logger.info("Created collection %s (dim=%d, cosine)", collection_name, vector_size)
 
 def upsert_chunks(
     embedded: list[Document],
@@ -160,7 +158,7 @@ def upsert_chunks(
     batch_size = c["qdrant_batch_size"]
     dense_name = c["dense_vector_name"]
     sparse_name = c["sparse_vector_name"]
-    hybrid = _hybrid_enabled(cfg)
+    hybrid = _hybrid_enabled()
 
     if not embedded:
         logger.warning("No embedded chunks to upsert")
@@ -226,7 +224,7 @@ def search(
     client = _qdrant_client(c)
     collection = c["qdrant_collection"]
     dense_name = c["dense_vector_name"]
-    hybrid = _hybrid_enabled(cfg)
+    hybrid = _hybrid_enabled()
 
     kwargs = {
         "collection_name": collection,
@@ -278,3 +276,30 @@ def search_hybrid(
         query_filter=_build_filter(source_filter),
         with_payload=True,
     )
+
+def list_sources(*, cfg: dict | None = None, page_size: int = 256) -> list[str]:
+    c = {**load_indexing_config(), **(cfg or {})}
+    client = _qdrant_client(c)
+    collection = c["qdrant_collection"]
+    seen: set[str] = set()
+    sources: list[str] = []
+    offset = None
+
+    while True:
+        points, offset = client.scroll(
+            collection_name=collection,
+            limit=page_size,
+            offset=offset,
+            with_payload=["source"],
+            with_vectors=False,
+        )
+        for point in points:
+            payload = point.payload or {}
+            src = payload.get("source")
+            if src and src not in seen:
+                seen.add(src)
+                sources.append(src)
+        if offset is None:
+            break
+
+    return sorted(sources)

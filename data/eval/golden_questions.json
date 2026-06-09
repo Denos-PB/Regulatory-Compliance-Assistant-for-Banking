@@ -1,0 +1,22 @@
+[
+  {
+    "question": "What is cardholder data (CHD) under PCI DSS?",
+    "ground_truth": "Cardholder data includes the primary account number (PAN), cardholder name, expiration date, and service code."
+  },
+  {
+    "question": "What entities must comply with PCI DSS?",
+    "ground_truth": "Entities that store, process, or transmit account data must comply with PCI DSS."
+  },
+  {
+    "question": "What is the purpose of PCI DSS?",
+    "ground_truth": "PCI DSS defines a minimum set of requirements for protecting account data."
+  },
+  {
+    "question": "What is capital adequacy under Basel III?",
+    "ground_truth": "Basel III strengthens bank capital adequacy, stress testing, and market liquidity risk requirements."
+  },
+  {
+    "question": "What are PCI DSS requirements for protecting cardholder data?",
+    "ground_truth": null
+  }
+]

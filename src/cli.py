@@ -32,6 +32,15 @@ def _doctor_env() -> dict[str, Any]:
         "Optional; defaults to config indexing.qdrant_url.",
         required=False,
     )
+    from src.observability.langfuse_tracing import is_enabled, langfuse_installed
+
+    tracing_ok = langfuse_installed() and is_enabled()
+    add(
+        "LANGFUSE_PUBLIC_KEY",
+        tracing_ok,
+        "Optional; install observability extra and set LANGFUSE_* keys for tracing.",
+        required=False,
+    )
     return {"checks": checks}
 
 
@@ -68,7 +77,6 @@ def run(
     source_filter: Optional[str] = typer.Option(None, "--source-filter", help="Limit retrieval to one source path"),
     json_out: bool = typer.Option(False, "--json", help="JSON output"),
 ):
-    """Ingest → index → optional ask (one command)."""
     from src.pipeline import run_all
 
     default_raw, default_out = _default_paths()
@@ -104,7 +112,6 @@ def run(
 def doctor(
     json_out: bool = typer.Option(False, "--json", help="JSON output"),
 ):
-    """Check environment variables."""
     result = _doctor_env()
     if json_out:
         typer.echo(json.dumps(result, indent=2))
@@ -125,13 +132,13 @@ def ask(
     source_filter: Optional[str] = typer.Option(None, "--source-filter", help="Filter by document source"),
     json_out: bool = typer.Option(False, "--json", help="JSON output"),
 ):
-    """Query the index only (no ingest/index)."""
     from src.rag.chain import answer
 
     result: dict[str, Any] = answer(
         question,
         top_k=top_k,
         source_filter=source_filter,
+        trace_tags=["cli"],
     )
 
     if json_out:
@@ -145,6 +152,36 @@ def ask(
         raise typer.Exit(0)
 
     _print_ask_result(result)
+
+
+@app.command()
+def eval_ragas(
+    golden: str = typer.Option(
+        "data/eval/golden_questions.json",
+        "--golden",
+        help="Path to golden questions JSON",
+    ),
+    top_k: Optional[int] = typer.Option(None, "--top-k", help="Chunks to retrieve per question"),
+    json_out: bool = typer.Option(False, "--json", help="JSON output"),
+):
+    from src.eval.ragas_eval import run_ragas_evaluation
+
+    try:
+        report = run_ragas_evaluation(golden, top_k=top_k)
+    except Exception as e:
+        typer.secho(f"RAGAS evaluation failed: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from e
+
+    if json_out:
+        typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
+        raise typer.Exit(0)
+
+    typer.echo(f"RAGAS evaluation ({report['questions']} question(s))")
+    typer.echo(f"Golden set: {report['golden_path']}\n")
+    for metric, value in sorted(report["scores"].items()):
+        if value is None:
+            continue
+        typer.echo(f"- {metric}: {value:.4f}")
 
 
 if __name__ == "__main__":

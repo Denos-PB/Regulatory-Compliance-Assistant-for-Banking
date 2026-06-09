@@ -37,7 +37,7 @@ def embed_sparse_query(
     *,
     cfg: dict | None = None,
 ) -> SparseVector:
-    if not query or query.strip():
+    if not query or not query.strip():
         return SparseVector(indices=[], values=[])
     
     c = {**load_indexing_config(), **(cfg or {})}

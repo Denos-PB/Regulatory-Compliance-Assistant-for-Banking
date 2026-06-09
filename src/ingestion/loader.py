@@ -50,7 +50,6 @@ def _element_metadata(el, path: str, file_type: str) -> dict:
 
 
 def load_file(path: str, cfg: dict) -> tuple[list[Document], dict]:
-    """Load one file. On failure returns empty docs and an error quality report."""
     skip = frozenset(cfg.get("skip_categories", _SKIP))
     min_len = cfg["min_text_length"]
 

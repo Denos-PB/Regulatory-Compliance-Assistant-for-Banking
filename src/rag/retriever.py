@@ -8,6 +8,12 @@ from ..indexing.embedder import _client as _embedding_client
 from ..indexing.store import search as qdrant_search
 from ..indexing.sparse import embed_sparse_query
 from ..indexing.store import search_hybrid
+from ..observability.langfuse_tracing import (
+    langchain_callbacks,
+    observe,
+    retrieval_output,
+    update_current_output,
+)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -39,6 +45,9 @@ def _embed_query(query: str, cfg: dict | None = None) -> list[float]:
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env")
     embedder = _embedding_client(cfg=indexing_cfg)
+    callbacks = langchain_callbacks()
+    if callbacks:
+        return embedder.embed_query(query.strip(), config={"callbacks": callbacks})
     return embedder.embed_query(query.strip())
 
 
@@ -59,6 +68,7 @@ def _hit_to_chunk(hit: Any) -> RetrievedChunk | None:
         file_type=payload.get("file_type"),
     )
 
+@observe(name="qdrant_retrieve")
 def retrieve(
     query: str,
     *,
@@ -78,11 +88,11 @@ def retrieve(
         rag_cfg["score_threshold"]
     )
 
-    logger.info("Retrieving top_%d for query: %s", top_k, query[:80])
     hybrid = bool(rag_cfg.get("hybrid_enabled"))
     prefetch_limit = rag_cfg.get("hybrid_prefetch_limit", 20)
+    mode = "hybrid" if hybrid else "dense"
+    logger.info("Retrieving (%s) top_%d for query: %s", mode, top_k, query[:80])
     if hybrid:
-        logger.info("Retrieving (hybrid) top_%d for query: %s", top_k, query[:80])
         dense_vector = _embed_query(query, cfg=cfg)
         sparse_vector = embed_sparse_query(query, cfg=cfg)
         response = search_hybrid(
@@ -94,7 +104,6 @@ def retrieve(
             cfg=cfg,
         )
     else:
-        logger.info("Retrieving (dense) top_%d for query: %s", top_k, query[:80])
         dense_vector = _embed_query(query, cfg=cfg)
         response = qdrant_search(
             dense_vector,
@@ -113,6 +122,8 @@ def retrieve(
         chunks.append(chunk)
 
     logger.info("Retrieved %d chunk(s)", len(chunks))
+
+    update_current_output(retrieval_output(chunks))
     return chunks
 
 def format_context(chunks: list[RetrievedChunk]) -> str:

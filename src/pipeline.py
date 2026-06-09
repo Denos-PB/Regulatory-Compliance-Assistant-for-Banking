@@ -1,5 +1,3 @@
-"""End-to-end pipeline: ingest → index → optional ask."""
-
 import json
 import logging
 import os
@@ -37,7 +35,6 @@ def run_ingestion(
     raw_dir: str,
     output_dir: str | Path,
 ) -> list:
-    """Raw PDF/HTML → parsed_document.json + extraction_quality.json."""
     output_dir = Path(output_dir)
     logger.info("Starting ingestion")
 
@@ -114,7 +111,6 @@ def run_indexing(
     save_chunks: bool = False,
     recreate_collection: bool = False,
 ) -> int:
-    """parsed_document.json → chunk → embed → Qdrant."""
     output_dir = Path(output_dir)
     parsed_path = Path(parsed_path)
     chunks_path = output_dir / "chunks.json"
@@ -172,13 +168,6 @@ def run_all(
     top_k: int | None = None,
     source_filter: str | None = None,
 ) -> dict[str, Any]:
-    """
-    Run the full RAG pipeline in one call.
-
-    1. Ingestion — raw PDF/HTML → parsed_document.json
-    2. Indexing — chunk → embed → Qdrant
-    3. Optional — answer a question with RAG
-    """
     paths = load_data_config()
     raw_dir = raw_dir or paths["raw_path"]
     output_dir = Path(output_dir or paths["processed_path"])
@@ -231,7 +220,12 @@ def run_all(
 
         from .rag.chain import answer
 
-        result = answer(question.strip(), top_k=top_k, source_filter=source_filter)
+        result = answer(
+            question.strip(),
+            top_k=top_k,
+            source_filter=source_filter,
+            trace_tags=["cli"],
+        )
         summary["answer"] = result.get("answer")
         summary["sources"] = result.get("sources") or []
 
