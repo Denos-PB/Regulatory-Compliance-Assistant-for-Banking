@@ -3,7 +3,7 @@ name = "regulatory-compliance-assistant-for-banking"
 version = "0.1.0"
 description = "RAG assistant for regulatory banking documents"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "fastapi>=0.136.3",
     "fastembed>=0.8.0",
@@ -21,14 +21,32 @@ dependencies = [
     "pyyaml>=6.0.3",
     "qdrant-client>=1.18.0",
     "typer>=0.12.0",
+    "uvicorn[standard]>=0.27.0",
+]
+
+[project.optional-dependencies]
+ingest = [
     "unstructured>=0.22.28",
     "unstructured-inference>=1.6.11",
     "unstructured-pytesseract>=0.3.15",
-    "uvicorn[standard]>=0.27.0",
+]
+observability = [
+    "langfuse>=3.15,<5",
+]
+
+[tool.uv]
+conflicts = [
+    [
+        { extra = "ingest" },
+        { extra = "observability" },
+    ],
 ]
 
 [dependency-groups]
 dev = [
+    "datasets>=5.0.0",
+    "langchain-community>=0.4.2",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    "ragas>=0.2.14,<0.3",
 ]

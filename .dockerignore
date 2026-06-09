@@ -1,17 +1,13 @@
-# Version control
 .git
 .gitignore
 
-# Secrets and local environment (never bake into the image)
 .env
 .env.local
 .env.*.local
 
-# Local Python / uv (image runs `uv sync` during build)
 .venv
 .python-version
 
-# Bytecode and test tooling
 __pycache__/
 *.py[cod]
 *$py.class
@@ -24,12 +20,10 @@ htmlcov/
 dist/
 build/
 
-# Large or host-specific data (mount volumes at runtime instead)
 data/raw/**
 data/processed/**
 logs/**
 
-# IDE and editor
 .vscode/
 .idea/
 .cursor/
@@ -37,13 +31,11 @@ logs/**
 *.swo
 *~
 
-# Docs and misc (not needed to run the API)
 README.md
 LICENSE
 .env.example
 Dockerfile
 .dockerignore
 
-# OS junk
 .DS_Store
 Thumbs.db

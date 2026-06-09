@@ -2,7 +2,7 @@ FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:python3.12-trixie-slim /uv /uvx /bin/
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --extra observability
 COPY src/ src/
 COPY config.yaml .
 EXPOSE 8000
