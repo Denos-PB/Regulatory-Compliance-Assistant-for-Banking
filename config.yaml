@@ -43,6 +43,10 @@ indexing:
   qdrant_vector_size: 1536
   qdrant_batch_size: 64
 
+  sparse_model: "Qdrant/bm25"
+  dense_vector_name: "dense"
+  sparse_vector_name: "sparse"
+
 rag:
   top_k: 5
   score_threshold: 0.0
@@ -50,3 +54,5 @@ rag:
   llm_base_url: "https://api.deepseek.com"
   temperature: 0
   max_tokens: 1024
+  hybrid_enabled: true
+  hybrid_prefetch_limit: 20
