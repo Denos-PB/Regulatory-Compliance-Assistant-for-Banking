@@ -42,6 +42,10 @@ conflicts = [
     ],
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
 [dependency-groups]
 dev = [
     "datasets>=5.0.0",
