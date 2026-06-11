@@ -19,21 +19,11 @@ Built for teams that need **traceable answers**, not a generic chatbot.
 
 ## Architecture
 
-```text
-┌─────────────┐     ┌──────────────────────────────────┐     ┌─────────┐
-│  data/raw   │────▶│  pipeline (ingest → index)       │────▶│ Qdrant  │
-│  PDF / HTML │     │  chunk · embed · sparse · upsert   │     │ vectors │
-└─────────────┘     └──────────────────────────────────┘     └────┬────┘
-                                                                    │
-                    ┌──────────────────────────────────┐            │
-                    │  RAG query path                  │◀───────────┘
-                    │  hybrid retrieve → DeepSeek LLM  │
-                    └──────────────────────────────────┘
-                              │
-                    ┌─────────┴─────────┐
-                    ▼                   ▼
-         CLI (ask)      FastAPI (/ask) + Web UI (/)
-```
+![System architecture](diagrams/Regulatory-Compliance-Assistant-for-Banking_general%20architecture.drawio.png)
+
+### Data flow
+
+![RAG pipeline](diagrams/Regulatory-Compliance-Assistant-for-Banking_data_flow.drawio.png)
 
 | Layer | Responsibility |
 |-------|----------------|
@@ -335,6 +325,7 @@ data/
   processed/           # parsed_document.json, quality reports
   eval/                # golden_questions.json
 config.yaml
+diagrams/              # Architecture diagrams (README)
 Dockerfile             # API-only image
 docker-compose.yml     # Qdrant + API
 ```
