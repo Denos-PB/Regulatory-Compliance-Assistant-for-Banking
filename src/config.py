@@ -31,8 +31,8 @@ INGESTION_DEFAULTS = {
 }
 
 INDEXING_DEFAULTS = {
-    "chunk_size": 1000,
-    "chunk_overlap": 200,
+    "chunk_size": 600,
+    "chunk_overlap": 120,
     "embedding_model": "text-embedding-3-small",
     "embedding_batch_size": 100,
     "qdrant_url": "http://localhost:6333",
@@ -46,14 +46,18 @@ INDEXING_DEFAULTS = {
 }
 
 RAG_DEFAULTS = {
-    "top_k": 5,
+    "top_k": 3,
     "score_threshold": 0.0,
     "llm_model": "deepseek-chat",
     "llm_base_url": "https://api.deepseek.com",
     "temperature": 0,
     "max_tokens": 1024,
     "hybrid_enabled": True,
-    "hybrid_prefetch_limit": 20,
+    "hybrid_prefetch_limit": 30,
+    "rerank_enabled": True,
+    "rerank_model": "BAAI/bge-reranker-base",
+    "rerank_top_n": 30,
+    "rerank_min_score": None,
 }
 
 _SECTION_DEFAULTS = {

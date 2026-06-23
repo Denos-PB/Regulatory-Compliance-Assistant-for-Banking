@@ -178,10 +178,31 @@ def eval_ragas(
 
     typer.echo(f"RAGAS evaluation ({report['questions']} question(s))")
     typer.echo(f"Golden set: {report['golden_path']}\n")
+    typer.echo("Overall:")
     for metric, value in sorted(report["scores"].items()):
         if value is None:
             continue
         typer.echo(f"- {metric}: {value:.4f}")
+
+    by_topic = report.get("by_topic") or {}
+    if by_topic:
+        typer.echo("\nBy topic:")
+        for topic in sorted(by_topic):
+            typer.echo(f"  [{topic}]")
+            for metric, value in sorted(by_topic[topic].items()):
+                if value is None:
+                    continue
+                typer.echo(f"    - {metric}: {value:.4f}")
+
+    worst = report.get("worst_context_precision") or []
+    if worst:
+        typer.echo("\nLowest context_precision:")
+        for row in worst:
+            q = row.get("question", "")
+            preview = q[:70] + ("..." if len(q) > 70 else "")
+            typer.echo(
+                f"  - {row.get('context_precision', 0):.4f} [{row.get('topic', '?')}] {preview}"
+            )
 
 
 if __name__ == "__main__":

@@ -12,11 +12,127 @@
     "ground_truth": "PCI DSS defines a minimum set of requirements for protecting account data."
   },
   {
+    "question": "What are PCI DSS requirements for protecting cardholder data?",
+    "ground_truth": "PCI DSS requires protecting stored and transmitted cardholder data with strong cryptography, restricting access, network segmentation, logging, vulnerability management, and controls that render PAN unreadable except where necessary."
+  },
+  {
+    "question": "What is sensitive authentication data (SAD) under PCI DSS?",
+    "ground_truth": "Sensitive authentication data includes full track data, card verification codes or values (CAV2/CVC2/CVV2/CID), and PINs or PIN blocks."
+  },
+  {
+    "question": "Can sensitive authentication data be stored after authorization under PCI DSS?",
+    "ground_truth": "Sensitive authentication data must not be stored after authorization, even if encrypted."
+  },
+  {
+    "question": "What is the difference between cardholder data and sensitive authentication data?",
+    "ground_truth": "Cardholder data includes PAN, cardholder name, expiration date, and service code; sensitive authentication data includes full track data, CAV2/CVC2/CVV2/CID, and PIN data and cannot be stored after authorization."
+  },
+  {
+    "question": "What are the PCI DSS goals?",
+    "ground_truth": "PCI DSS is organized around goals such as building and maintaining secure networks, protecting account data, maintaining a vulnerability management program, implementing strong access control, monitoring and testing networks, and maintaining an information security policy."
+  },
+  {
+    "question": "What does PCI DSS Requirement 1 address?",
+    "ground_truth": "Requirement 1 addresses installing and maintaining network security controls to protect cardholder data."
+  },
+  {
+    "question": "What does PCI DSS require for network segmentation?",
+    "ground_truth": "Network segmentation isolates the cardholder data environment from other networks and can reduce scope and risk if implemented correctly."
+  },
+  {
+    "question": "When is multi-factor authentication required under PCI DSS?",
+    "ground_truth": "Multi-factor authentication is required for all access into the cardholder data environment and for all non-console administrative access."
+  },
+  {
+    "question": "What are PCI DSS requirements for encrypting cardholder data at rest?",
+    "ground_truth": "Cardholder data must be protected with strong cryptography wherever it is stored."
+  },
+  {
+    "question": "What are PCI DSS requirements for encrypting PAN during transmission?",
+    "ground_truth": "PAN must be rendered unreadable anywhere it is stored and protected with strong cryptography during transmission over open, public networks."
+  },
+  {
+    "question": "What is tokenization in the context of PCI DSS?",
+    "ground_truth": "Tokenization replaces PAN with a surrogate value (token) so that account data is not stored in cleartext in systems that do not need the PAN."
+  },
+  {
+    "question": "What is PCI DSS scope?",
+    "ground_truth": "PCI DSS scope includes system components, people, and processes that store, process, or transmit account data or could impact the security of account data."
+  },
+  {
+    "question": "What is a service provider under PCI DSS?",
+    "ground_truth": "A service provider is a business entity that processes, stores, or transmits account data on behalf of another entity or provides services that could impact the security of account data."
+  },
+  {
+    "question": "What does PCI DSS require for logging and monitoring?",
+    "ground_truth": "PCI DSS requires logging and monitoring of access to system components and cardholder data, with logs reviewed regularly and retained per policy."
+  },
+  {
+    "question": "What are PCI DSS vulnerability management requirements?",
+    "ground_truth": "PCI DSS requires protecting systems against malware, developing and maintaining secure systems and software, identifying and addressing vulnerabilities, and applying security patches in a timely manner."
+  },
+  {
+    "question": "What is the cardholder data environment (CDE)?",
+    "ground_truth": "The CDE is the people, processes, and technology that store, process, or transmit cardholder data or sensitive authentication data."
+  },
+  {
+    "question": "What steps should an organization take to achieve PCI DSS compliance?",
+    "ground_truth": "An organization should define PCI scope, implement required security controls, document policies and procedures, validate compliance through assessment or SAQ, and maintain ongoing monitoring and remediation."
+  },
+  {
     "question": "What is capital adequacy under Basel III?",
     "ground_truth": "Basel III strengthens bank capital adequacy, stress testing, and market liquidity risk requirements."
   },
   {
-    "question": "What are PCI DSS requirements for protecting cardholder data?",
-    "ground_truth": null
+    "question": "What are the three pillars of the Basel framework?",
+    "ground_truth": "The Basel framework is built on minimum capital requirements (Pillar 1), supervisory review (Pillar 2), and market discipline through disclosure (Pillar 3)."
+  },
+  {
+    "question": "What is Common Equity Tier 1 (CET1) capital?",
+    "ground_truth": "CET1 is the highest-quality form of regulatory capital, consisting primarily of common shares and retained earnings after regulatory adjustments."
+  },
+  {
+    "question": "What is the minimum Common Equity Tier 1 ratio under Basel III?",
+    "ground_truth": "Basel III sets a minimum CET1 capital ratio of 4.5% of risk-weighted assets."
+  },
+  {
+    "question": "What is the minimum Tier 1 capital ratio under Basel III?",
+    "ground_truth": "The minimum Tier 1 capital ratio under Basel III is 6.0% of risk-weighted assets."
+  },
+  {
+    "question": "What is the minimum total capital ratio under Basel III?",
+    "ground_truth": "The minimum total capital ratio under Basel III is 8.0% of risk-weighted assets."
+  },
+  {
+    "question": "What is the capital conservation buffer under Basel III?",
+    "ground_truth": "The capital conservation buffer is an additional 2.5% of RWA in CET1 that banks must hold; breaching it triggers restrictions on distributions."
+  },
+  {
+    "question": "What is the leverage ratio in Basel III?",
+    "ground_truth": "The leverage ratio is a non-risk-based backstop measuring Tier 1 capital against total exposure, including on- and off-balance-sheet exposures."
+  },
+  {
+    "question": "What is the Liquidity Coverage Ratio (LCR)?",
+    "ground_truth": "The LCR requires banks to hold enough high-quality liquid assets to cover net cash outflows over a 30-day stress scenario."
+  },
+  {
+    "question": "What is the Net Stable Funding Ratio (NSFR)?",
+    "ground_truth": "The NSFR requires stable funding over a one-year horizon relative to the liquidity characteristics of assets and off-balance-sheet activities."
+  },
+  {
+    "question": "What is risk-weighted assets (RWA)?",
+    "ground_truth": "Risk-weighted assets are a measure of a bank's assets and off-balance-sheet exposures adjusted by regulatory risk weights used to calculate minimum capital requirements."
+  },
+  {
+    "question": "What is credit risk under Basel III?",
+    "ground_truth": "Credit risk is the risk of loss from a borrower's failure to meet contractual obligations; Basel III sets capital requirements based on credit risk-weighted exposures."
+  },
+  {
+    "question": "What is operational risk under Basel III?",
+    "ground_truth": "Operational risk is the risk of loss from inadequate or failed internal processes, people, systems, or external events, subject to capital requirements under the framework."
+  },
+  {
+    "question": "What are the main liquidity and capital requirements under Basel III?",
+    "ground_truth": "Basel III sets minimum capital ratios (CET1 4.5%, Tier 1 6%, total 8% plus buffers), a leverage ratio, and liquidity standards including the Liquidity Coverage Ratio and Net Stable Funding Ratio."
   }
 ]

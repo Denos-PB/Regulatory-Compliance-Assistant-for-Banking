@@ -89,16 +89,31 @@ def retrieve(
     )
 
     hybrid = bool(rag_cfg.get("hybrid_enabled"))
+    rerank = bool(rag_cfg.get("rerank_enabled"))
     prefetch_limit = rag_cfg.get("hybrid_prefetch_limit", 20)
-    mode = "hybrid" if hybrid else "dense"
-    logger.info("Retrieving (%s) top_%d for query: %s", mode, top_k, query[:80])
+    candidate_limit = (
+        max(int(rag_cfg.get("rerank_top_n", 20)), top_k) if rerank else top_k
+    )
+    if hybrid and rerank:
+        prefetch_limit = max(prefetch_limit, candidate_limit)
+
+    mode = "hybrid+rerank" if hybrid and rerank else "hybrid" if hybrid else "dense"
+    if rerank and not hybrid:
+        mode = f"{mode}+rerank"
+    logger.info(
+        "Retrieving (%s) top_%d (candidates=%d) for query: %s",
+        mode,
+        top_k,
+        candidate_limit,
+        query[:80],
+    )
     if hybrid:
         dense_vector = _embed_query(query, cfg=cfg)
         sparse_vector = embed_sparse_query(query, cfg=cfg)
         response = search_hybrid(
             dense_vector,
             sparse_vector,
-            limit=top_k,
+            limit=candidate_limit,
             prefetch_limit=prefetch_limit,
             source_filter=source_filter,
             cfg=cfg,
@@ -107,7 +122,7 @@ def retrieve(
         dense_vector = _embed_query(query, cfg=cfg)
         response = qdrant_search(
             dense_vector,
-            limit=top_k,
+            limit=candidate_limit,
             source_filter=source_filter,
             cfg=cfg,
         )
@@ -117,9 +132,14 @@ def retrieve(
         chunk = _hit_to_chunk(hit)
         if chunk is None:
             continue
-        if score_threshold and chunk.score < score_threshold:
+        if not rerank and score_threshold and chunk.score < score_threshold:
             continue
         chunks.append(chunk)
+
+    if rerank and chunks:
+        from .reranker import rerank_chunks
+
+        chunks = rerank_chunks(query, chunks, top_k=top_k, cfg=rag_cfg)
 
     logger.info("Retrieved %d chunk(s)", len(chunks))
 

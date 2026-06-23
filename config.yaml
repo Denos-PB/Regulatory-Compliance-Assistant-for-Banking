@@ -32,8 +32,8 @@ ingestion:
   fail_on_quality_issues: false
 
 indexing:
-  chunk_size: 1000
-  chunk_overlap: 200
+  chunk_size: 600
+  chunk_overlap: 120
   embedding_model: "text-embedding-3-small"
   embedding_batch_size: 100
 
@@ -48,11 +48,15 @@ indexing:
   sparse_vector_name: "sparse"
 
 rag:
-  top_k: 5
+  top_k: 3
   score_threshold: 0.0
   llm_model: "deepseek-chat"
   llm_base_url: "https://api.deepseek.com"
   temperature: 0
   max_tokens: 1024
   hybrid_enabled: true
-  hybrid_prefetch_limit: 20
+  hybrid_prefetch_limit: 30
+  rerank_enabled: true
+  rerank_model: "BAAI/bge-reranker-base"
+  rerank_top_n: 30
+  rerank_min_score: null

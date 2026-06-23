@@ -30,6 +30,22 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_GOLDEN_PATH = Path("data/eval/golden_questions.json")
 
+_PCI_HINTS = ("pci", "cardholder", "pan", "tokenization", "cde", "merchant", "sad")
+_BASEL_HINTS = ("basel", "cet1", "capital", "liquidity", "lcr", "nsfr", "rwa", "tier 1", "leverage")
+
+
+def golden_topic(item: dict[str, Any]) -> str:
+    explicit = item.get("topic")
+    if explicit:
+        return str(explicit).lower()
+
+    q = (item.get("question") or "").lower()
+    if any(h in q for h in _PCI_HINTS):
+        return "pci"
+    if any(h in q for h in _BASEL_HINTS):
+        return "basel"
+    return "other"
+
 
 def _ragas_llm() -> LangchainLLMWrapper:
     cfg = load_rag_config()
@@ -82,6 +98,7 @@ def build_eval_dataset(
     answers: list[str] = []
     contexts_list: list[list[str]] = []
     ground_truths: list[str] = []
+    topics: list[str] = []
 
     for i, item in enumerate(items, start=1):
         question = (item.get("question") or "").strip()
@@ -98,6 +115,7 @@ def build_eval_dataset(
         answers.append(result.get("answer") or "")
         contexts_list.append(contexts)
         ground_truths.append(item.get("ground_truth") or "")
+        topics.append(golden_topic(item))
 
     if not questions:
         raise ValueError("No valid questions in golden set.")
@@ -107,6 +125,7 @@ def build_eval_dataset(
         "answer": answers,
         "contexts": contexts_list,
         "ground_truth": ground_truths,
+        "topic": topics,
     }
 
 
@@ -131,9 +150,31 @@ def run_ragas_evaluation(
     )
 
     scores = result.to_pandas().mean(numeric_only=True).to_dict()
+    df = result.to_pandas()
+    df["topic"] = records["topic"]
+
+    by_topic: dict[str, dict[str, float | None]] = {}
+    for topic, group in df.groupby("topic", sort=True):
+        by_topic[str(topic)] = group.mean(numeric_only=True).to_dict()
+
+    worst_precision: list[dict[str, Any]] = []
+    if "context_precision" in df.columns:
+        worst = df.nsmallest(5, "context_precision")
+        for row in worst.itertuples(index=False):
+            worst_precision.append(
+                {
+                    "question": getattr(row, "question", ""),
+                    "topic": getattr(row, "topic", ""),
+                    "context_precision": float(getattr(row, "context_precision")),
+                }
+            )
+
+    per_row = df.to_dict(orient="records")
     return {
         "questions": len(records["question"]),
         "golden_path": str(golden_path),
         "scores": scores,
-        "per_row": result.to_pandas().to_dict(orient="records"),
+        "by_topic": by_topic,
+        "worst_context_precision": worst_precision,
+        "per_row": per_row,
     }

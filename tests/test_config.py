@@ -8,8 +8,12 @@ from src.config import (
 
 def test_load_rag_config_has_hybrid_defaults():
     cfg = load_rag_config()
-    assert cfg["top_k"] == 5
+    assert cfg["top_k"] == 3
     assert cfg["hybrid_enabled"] is True
+    assert cfg["rerank_enabled"] is True
+    assert cfg["rerank_top_n"] == 30
+    assert cfg["rerank_model"] == "BAAI/bge-reranker-base"
+    assert cfg["rerank_min_score"] is None
     assert cfg["llm_model"]
 
 

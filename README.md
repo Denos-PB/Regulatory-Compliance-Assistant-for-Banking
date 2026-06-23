@@ -1,8 +1,10 @@
 # Regulatory Compliance Assistant for Banking
 
-A production-style RAG system for **regulatory PDFs and HTML** (PCI DSS, Basel III, and similar corpora). It ingests messy documents, indexes them into **Qdrant**, and answers compliance questions with **source citations** — using hybrid retrieval (dense + sparse) and grounded generation.
+A **portfolio / demo RAG** for **regulatory PDFs and HTML** (PCI DSS, Basel III, and similar corpora). It ingests documents, indexes them into **Qdrant**, and answers compliance-style questions with **source citations** — hybrid retrieval (dense + sparse), cross-encoder rerank, and grounded generation.
 
-Built for teams that need **traceable answers**, not a generic chatbot.
+**Not** an enterprise compliance platform, legal product, or air-gapped system. Every question-and-answer path needs **live API access** (OpenAI embeddings + DeepSeek generation). Indexing also calls OpenAI for dense embeddings.
+
+Built to show **traceable, cited RAG** over regulatory text — not a generic chatbot.
 
 ---
 
@@ -11,9 +13,20 @@ Built for teams that need **traceable answers**, not a generic chatbot.
 - **End-to-end pipeline** — ingest → chunk → embed → vector store → cited Q&A (CLI + HTTP API)
 - **Robust PDF extraction** — fast path with automatic fallback to `pypdf` when needed
 - **Hybrid retrieval** — OpenAI dense embeddings + BM25 sparse vectors, fused with **RRF** in Qdrant
+- **Cross-encoder rerank** — fastembed re-scores top candidates before generation
 - **Closed-book answers** — prompts constrain the model to retrieved context
-- **Offline evaluation** — RAGAS metrics with **DeepSeek as judge** (dev tooling)
-- **Docker-ready** — API container + Qdrant via Compose; batch indexing on the host
+- **RAGAS evaluation (dev)** — golden-set metrics; still uses OpenAI + DeepSeek APIs
+- **Docker-ready** — API container + Qdrant via Compose; document indexing via CLI on the host
+
+### What runs where
+
+| Step | Runs | Needs network / APIs |
+|------|------|----------------------|
+| Ingest (parse PDF/HTML) | CLI, mostly local | Optional hi-res paths may pull models; core path is local files |
+| Index (embed + upsert) | CLI | **OpenAI** embeddings; Qdrant |
+| Ask (CLI, HTTP API, Web UI) | CLI or FastAPI | **OpenAI** (query embed) + **DeepSeek** (answer); Qdrant; rerank is local (fastembed) |
+| RAGAS eval | CLI (dev) | Same as ask, plus judge LLM calls |
+| Langfuse tracing | Optional | Langfuse host if enabled |
 
 ---
 
@@ -29,7 +42,7 @@ Built for teams that need **traceable answers**, not a generic chatbot.
 |-------|----------------|
 | **Ingestion** | Load, validate, extract, dedupe headers/footers (`src/ingestion/`) |
 | **Indexing** | Chunk, dense + sparse embed, upsert (`src/indexing/`) |
-| **Retrieval** | Hybrid or dense search (`src/rag/retriever.py`) |
+| **Retrieval** | Hybrid or dense search + optional cross-encoder rerank (`src/rag/retriever.py`) |
 | **Generation** | Compliance prompts + DeepSeek (`src/rag/chain.py`) |
 | **Orchestration** | `src/pipeline.py` — `run_ingestion`, `run_indexing`, `run_all` |
 
@@ -57,6 +70,7 @@ Built for teams that need **traceable answers**, not a generic chatbot.
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/)
 - Docker (for Qdrant and optional API container)
+- Outbound network for **OpenAI** and **DeepSeek** (required for index + every Q&A)
 - API keys: [OpenAI](https://platform.openai.com/) (embeddings), [DeepSeek](https://platform.deepseek.com/) (generation)
 
 ### 2. Install and configure
@@ -135,7 +149,7 @@ Every answer includes chunk IDs so you can audit what the model saw.
 | `uv run python -m src.cli run -q "..."` | Index, then answer one question |
 | `uv run python -m src.cli ask "..."` | Query only (index must exist) |
 | `uv run python -m src.cli doctor` | Check API keys and config |
-| `uv run python -m src.cli eval-ragas` | Offline RAGAS evaluation (dev deps) |
+| `uv run python -m src.cli eval-ragas` | RAGAS evaluation on golden set (dev; API-backed) |
 
 Useful flags: `--raw-dir`, `--output-dir`, `--top-k`, `--source-filter`, `--skip-ingest`, `--skip-index`, `--json`.
 
@@ -148,14 +162,18 @@ Hybrid search is **on by default** (`rag.hybrid_enabled: true` in `config.yaml`)
 - **Dense** — semantic similarity (OpenAI embeddings)
 - **Sparse** — lexical match for acronyms and exact terms (BM25 via fastembed)
 - **Fusion** — Reciprocal Rank Fusion (RRF) inside Qdrant
+- **Rerank** — cross-encoder (`rerank_enabled: true`) re-scores the top `rerank_top_n` candidates, returns final `top_k`
+- **Rerank cutoff** — optional `rerank_min_score` drops weak chunks after reranking (tune per model; e.g. `0.35` for BGE)
 
-After toggling hybrid or changing vector schema, re-index:
+After toggling hybrid, rerank, or changing vector schema, re-index:
 
 ```bash
 uv run python -m src.cli run --recreate
 ```
 
 To compare dense-only retrieval, set `hybrid_enabled: false` in `config.yaml` and re-run with `--recreate`.
+
+To disable reranking, set `rerank_enabled: false`.
 
 ---
 
@@ -254,7 +272,25 @@ uv run python -m src.cli eval-ragas --json
 
 **Metrics:** faithfulness, answer relevancy, context precision.
 
+Latest local benchmark snapshot (34-question golden set):
+
+```text
+Overall:
+- answer_relevancy: 0.7079
+- context_precision: 0.5196
+- faithfulness: 0.8652
+```
+
+`eval-ragas` prints **overall**, **by topic** (pci / basel), and the **5 lowest context_precision** questions to guide retrieval tuning.
+
 Requires a populated Qdrant index and both API keys. Evaluation calls external APIs and may take several minutes.
+
+After changing `chunk_size` / hybrid / rerank settings, re-index before re-running eval:
+
+```bash
+uv run python -m src.cli run --recreate
+uv run python -m src.cli eval-ragas
+```
 
 `src/eval/_ragas_compat.py` is a small import shim: recent `langchain-community` removed Vertex AI chat models that RAGAS still references at load time; the shim is dev-only and not used at runtime in production.
 
@@ -268,6 +304,7 @@ RAG queries are traced when the **observability** extra is installed and Langfus
 |------|------------------|
 | `rag_answer` | Full Q&A (tags: `api`, `cli`, or `eval`) |
 | `qdrant_retrieve` | Hybrid/dense retrieval metadata |
+| `cross_encoder_rerank` | Rerank scores and candidate count |
 | LangChain callbacks | LLM generation + query embeddings |
 
 ```bash
@@ -291,7 +328,7 @@ Set `LANGFUSE_ENABLED=false` to disable tracing without removing keys.
 | `data` | Paths for raw files, processed JSON, logs |
 | `ingestion` | PDF strategy, file types, dedupe, quality thresholds |
 | `indexing` | Chunk size, embedding model, Qdrant collection, sparse model |
-| `rag` | `top_k`, LLM settings, `hybrid_enabled`, `hybrid_prefetch_limit` |
+| `rag` | `top_k`, LLM settings, `hybrid_enabled`, `hybrid_prefetch_limit`, `rerank_enabled`, `rerank_top_n`, `rerank_min_score` |
 
 ### `.env`
 
@@ -334,9 +371,11 @@ docker-compose.yml     # Qdrant + API
 
 ## Design notes
 
-**Batch vs serving.** Ingestion and indexing are offline batch jobs (CLI). The API is a thin query layer over Qdrant. This mirrors common production patterns and keeps the Docker image small.
+**Batch vs online serving.** Ingestion and indexing are **local batch jobs** (CLI): you run them when documents change. The **API and Web UI are online query services** — each `/ask` or `cli ask` calls external embedding and LLM APIs. Qdrant and reranking run on your infra; generation does not.
 
 **Why hybrid?** Regulatory text is full of exact tokens (PCI DSS, CHD, PAN, article numbers). Dense search alone can miss them; BM25 + RRF improves recall on terminology-heavy questions.
+
+**Scope and limits.** Demo/portfolio project: no auth on the API by default, no SLA, no certified compliance workflow. Useful for learning and interviews; not a substitute for legal or compliance review.
 
 **Not legal advice.** This tool assists document Q&A with citations. It does not replace compliance review, legal counsel, or official interpretation of regulations.
 
