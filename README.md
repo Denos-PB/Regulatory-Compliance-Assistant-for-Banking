@@ -131,12 +131,11 @@ uv run python -m src.cli doctor
 **Sources:**
 
 ```text
-data/raw/PCI-DSS-v4_0_1.pdf | p.1 | data/raw/PCI-DSS-v4_0_1.pdf::chunk_19
-data/raw/PCI-DSS-v4_0_1.pdf | p.1 | data/raw/PCI-DSS-v4_0_1.pdf::chunk_15
-...
+PCI-DSS-v4_0_1.pdf (p. 42)
+PCI-DSS-v4_0_1.pdf (p. 18)
 ```
 
-Every answer includes chunk IDs so you can audit what the model saw.
+Every answer includes document and page citations so you can audit what the model saw.
 
 ---
 
@@ -371,6 +370,7 @@ data/
   eval/                # golden_questions.json
 config.yaml
 diagrams/              # Architecture diagrams (README)
+diagrams_video/        # Demo screen recording (README)
 Dockerfile             # API-only image
 docker-compose.yml     # Qdrant + API
 ```
@@ -392,3 +392,11 @@ docker-compose.yml     # Qdrant + API
 ## License
 
 See [LICENSE](LICENSE).
+
+---
+
+## Demo
+
+Screen recording of the assistant in action: compliance question → hybrid retrieval → grounded answer with page citations.
+
+[diagrams_video/demo.mp4](diagrams_video/demo.mp4)

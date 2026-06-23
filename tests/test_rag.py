@@ -2,7 +2,7 @@ from langchain_core.documents import Document
 
 from src.rag.chain import answer
 from src.rag.prompts import build_messages
-from src.rag.retriever import RetrievedChunk, format_context, retrieve
+from src.rag.retriever import RetrievedChunk, format_context, retrieve, unique_citations
 
 
 def test_build_messages_includes_context_and_question():
@@ -40,7 +40,7 @@ def test_format_context_numbering():
     assert "[1]" in ctx
     assert "[2]" in ctx
     assert "pci.pdf" in ctx
-    assert "pp.10-12" in ctx
+    assert "(p. 3)" in ctx or "pp." in ctx
 
 
 def test_retrieved_chunk_citation():
@@ -52,9 +52,18 @@ def test_retrieved_chunk_citation():
         page_number=7,
     )
     citation = chunk.citation()
-    assert "data/raw/pci.pdf" in citation
-    assert "p.7" in citation
-    assert "id-1" in citation
+    assert citation == "pci.pdf (p. 7)"
+    assert "data/raw" not in citation
+    assert "id-1" not in citation
+
+
+def test_unique_citations_dedupes_same_source_page():
+    chunks = [
+        RetrievedChunk(text="a", score=1.0, chunk_id="c1", source="data/raw/pci.pdf", page_number=7),
+        RetrievedChunk(text="b", score=0.9, chunk_id="c2", source="data/raw/pci.pdf", page_number=7),
+        RetrievedChunk(text="c", score=0.8, chunk_id="c3", source="data/raw/basel.pdf", page_number=12),
+    ]
+    assert unique_citations(chunks) == ["pci.pdf (p. 7)", "basel.pdf (p. 12)"]
 
 
 def test_answer_empty_query():

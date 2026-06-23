@@ -5,4 +5,4 @@ RUN uv sync --frozen --no-dev --extra observability
 COPY src/ src/
 COPY config.yaml .
 EXPOSE 8000
-CMD ["uv", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--frozen", "--no-dev", "--extra", "observability", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

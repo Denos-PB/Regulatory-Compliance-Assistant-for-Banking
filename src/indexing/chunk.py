@@ -17,25 +17,31 @@ def _splitter(chunk_size: int, chunk_overlap: int) -> RecursiveCharacterTextSpli
         separators=["\n\n", "\n", ". ", " ", ""],
     )
 
-def merge_by_source(docs: list[Document]) -> list[Document]:
-    by_source: dict[str, list[Document]] = {}
+def merge_by_page(docs: list[Document]) -> list[Document]:
+    by_page: dict[tuple[str, int | None], list[Document]] = {}
     for doc in docs:
         src = doc.metadata.get("source", "unknown")
-        by_source.setdefault(src,[]).append(doc)
+        page = doc.metadata.get("page_number")
+        by_page.setdefault((src, page), []).append(doc)
 
     merged = []
-    for src, group in by_source.items():
-        group.sort(key=lambda d: d.metadata.get("page_number") or 0)
+    for (src, page), group in by_page.items():
         text = "\n\n".join(d.page_content.strip() for d in group if d.page_content.strip())
         if not text:
             continue
         meta = dict(group[0].metadata)
-        meta['merged_elements'] = len(group)
-        meta['page_start'] = group[0].metadata.get("page_number")
-        meta['page_end'] = group[-1].metadata.get('page_number')
-        merged.append(Document(page_content=text,metadata=meta))
+        meta["merged_elements"] = len(group)
+        if page is not None:
+            meta["page_number"] = page
+            meta["page_start"] = page
+            meta["page_end"] = page
+        merged.append(Document(page_content=text, metadata=meta))
 
     return merged
+
+
+def merge_by_source(docs: list[Document]) -> list[Document]:
+    return merge_by_page(docs)
 
 def chunk_documents(
     docs: list[Document],
@@ -48,7 +54,7 @@ def chunk_documents(
     chunk_size = chunk_size if chunk_size is not None else c["chunk_size"]
     chunk_overlap = chunk_overlap if chunk_overlap is not None else c["chunk_overlap"]
 
-    merged = merge_by_source(docs)
+    merged = merge_by_page(docs)
     splitter = _splitter(chunk_size, chunk_overlap)
     chunks : list[Document] = []
 

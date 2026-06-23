@@ -1,21 +1,18 @@
 from langchain_core.documents import Document
 
-from src.indexing.chunk import chunk_documents, merge_by_source
+from src.indexing.chunk import chunk_documents, merge_by_page
 
 
-def test_merge_by_source_combines_pages():
+def test_merge_by_page_keeps_pages_separate():
     docs = [
         Document(page_content="Page one", metadata={"source": "a.pdf", "page_number": 1}),
         Document(page_content="Page two", metadata={"source": "a.pdf", "page_number": 2}),
         Document(page_content="Other doc", metadata={"source": "b.pdf", "page_number": 1}),
     ]
-    merged = merge_by_source(docs)
-    assert len(merged) == 2
-    by_src = {d.metadata["source"]: d for d in merged}
-    assert "Page one" in by_src["a.pdf"].page_content
-    assert "Page two" in by_src["a.pdf"].page_content
-    assert by_src["a.pdf"].metadata["page_start"] == 1
-    assert by_src["a.pdf"].metadata["page_end"] == 2
+    merged = merge_by_page(docs)
+    assert len(merged) == 3
+    pages = {(d.metadata["source"], d.metadata["page_number"]) for d in merged}
+    assert pages == {("a.pdf", 1), ("a.pdf", 2), ("b.pdf", 1)}
 
 
 def test_chunk_documents_assigns_chunk_ids():

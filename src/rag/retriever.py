@@ -1,6 +1,7 @@
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from dotenv import load_dotenv
 from ..config import load_indexing_config, load_rag_config
@@ -9,7 +10,6 @@ from ..indexing.store import search as qdrant_search
 from ..indexing.sparse import embed_sparse_query
 from ..indexing.store import search_hybrid
 from ..observability.langfuse_tracing import (
-    langchain_callbacks,
     observe,
     retrieval_output,
     update_current_output,
@@ -31,23 +31,33 @@ class RetrievedChunk:
     file_type: str | None = None
 
     def citation(self) -> str:
-        parts=[self.source]
+        source_name = Path(self.source).name if self.source else "unknown"
+        if self.page_start is not None:
+            end = self.page_end or self.page_start
+            if end == self.page_start:
+                return f"{source_name} (p. {self.page_start})"
+            return f"{source_name} (pp. {self.page_start}–{end})"
         if self.page_number is not None:
-            parts.append(f"p.{self.page_number}")
-        elif self.page_start is not None:
-            end=self.page_end or self.page_start
-            parts.append(f"pp.{self.page_start}-{end}")
-        parts.append(self.chunk_id)
-        return " | ".join(parts)
+            return f"{source_name} (p. {self.page_number})"
+        return source_name
+
+
+def unique_citations(chunks: list[RetrievedChunk]) -> list[str]:
+    seen: set[str] = set()
+    citations: list[str] = []
+    for chunk in chunks:
+        cite = chunk.citation()
+        if cite in seen:
+            continue
+        seen.add(cite)
+        citations.append(cite)
+    return citations
 
 def _embed_query(query: str, cfg: dict | None = None) -> list[float]:
     indexing_cfg = {**load_indexing_config(), **(cfg or {})}
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env")
     embedder = _embedding_client(cfg=indexing_cfg)
-    callbacks = langchain_callbacks()
-    if callbacks:
-        return embedder.embed_query(query.strip(), config={"callbacks": callbacks})
     return embedder.embed_query(query.strip())
 
 

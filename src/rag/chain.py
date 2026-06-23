@@ -13,7 +13,7 @@ from ..observability.langfuse_tracing import (
     flush_traces,
 )
 from .prompts import build_messages
-from .retriever import format_context, retrieve
+from .retriever import format_context, retrieve, unique_citations
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ def answer(
         llm = _llm(cfg)
         response = llm.invoke(messages, config={"callbacks": langchain_callbacks()})
 
-        sources = [c.citation() for c in chunks]
+        sources = unique_citations(chunks)
         result = {
             "answer": response.content if hasattr(response, "content") else str(response),
             "sources": sources,
