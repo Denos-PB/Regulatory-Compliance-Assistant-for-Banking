@@ -281,6 +281,14 @@ Overall:
 - faithfulness: 0.8652
 ```
 
+Before/after retrieval tuning:
+
+| Metric | Before | After |
+|------|--------|-------|
+| answer_relevancy | 0.7870 | 0.7079 |
+| context_precision | 0.4565 | 0.5196 |
+| faithfulness | 0.8908 | 0.8652 |
+
 `eval-ragas` prints **overall**, **by topic** (pci / basel), and the **5 lowest context_precision** questions to guide retrieval tuning.
 
 Requires a populated Qdrant index and both API keys. Evaluation calls external APIs and may take several minutes.
