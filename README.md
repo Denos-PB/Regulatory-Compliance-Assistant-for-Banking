@@ -8,6 +8,14 @@ Built to show **traceable, cited RAG** over regulatory text — not a generic ch
 
 ---
 
+## Demo
+
+Screen recording: compliance question → hybrid retrieval → grounded answer with page citations.
+
+[diagrams_video/demo.mp4](diagrams_video/demo.mp4)
+
+---
+
 ## Highlights
 
 - **End-to-end pipeline** — ingest → chunk → embed → vector store → cited Q&A (CLI + HTTP API)
@@ -32,11 +40,11 @@ Built to show **traceable, cited RAG** over regulatory text — not a generic ch
 
 ## Architecture
 
-![System architecture](diagrams/Regulatory-Compliance-Assistant-for-Banking_general%20architecture.drawio.png)
+![System architecture](diagrams_video/Regulatory-Compliance-Assistant-for-Banking_general%20architecture.drawio.png)
 
 ### Data flow
 
-![RAG pipeline](diagrams/Regulatory-Compliance-Assistant-for-Banking_data_flow.drawio.png)
+![RAG pipeline](diagrams_video/Regulatory-Compliance-Assistant-for-Banking_data_flow.drawio.png)
 
 | Layer | Responsibility |
 |-------|----------------|
@@ -369,8 +377,7 @@ data/
   processed/           # parsed_document.json, quality reports
   eval/                # golden_questions.json
 config.yaml
-diagrams/              # Architecture diagrams (README)
-diagrams_video/        # Demo screen recording (README)
+diagrams_video/        # Architecture diagrams + demo recording
 Dockerfile             # API-only image
 docker-compose.yml     # Qdrant + API
 ```
@@ -392,11 +399,3 @@ docker-compose.yml     # Qdrant + API
 ## License
 
 See [LICENSE](LICENSE).
-
----
-
-## Demo
-
-Screen recording of the assistant in action: compliance question → hybrid retrieval → grounded answer with page citations.
-
-[diagrams_video/demo.mp4](diagrams_video/demo.mp4)
