@@ -12,7 +12,7 @@ Built to show **traceable, cited RAG** over regulatory text — not a generic ch
 
 Screen recording: compliance question → hybrid retrieval → grounded answer with page citations.
 
-[diagrams_video/demo.mp4](diagrams_video/demo.mp4)
+https://github.com/user-attachments/assets/38f248c8-b29b-4c79-a73e-601e9889ac81
 
 ---
 
